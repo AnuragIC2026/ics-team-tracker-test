@@ -10,6 +10,8 @@ The production app (Node + MySQL, server-checked login and roles, email OTP, not
 - **Project manager** sees everyone's scores, plus full task details for their assigned team members, and plans, reviews, redoes and unlocks for them.
 - **Team member** sees everyone's scores, but only their own tasks, updates and comments.
 
+**Leave**: only the admin assigns leave: paid, unpaid or partial. On a partial-leave day the person can still log a little work; task self-scores and the day's score go up to 4.
+
 **Sign-in (temporary passwords)**
 - Admin: anurag.p@icsoln.com / Anurag123
 - Project manager: priyanshi@icsoln.com / Priyanshi123 (manages Praveen)
