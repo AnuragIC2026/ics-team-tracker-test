@@ -16,6 +16,8 @@ The production app (Node + MySQL, server-checked login and roles, email OTP, not
 
 **Tasks**: planned tasks can be Urgent, High or Low (Urgent + High = Critical) and are listed in that order. Team members score tasks on collapsible cards, can add tasks for themselves, and mark backlog (carried-over) tasks Pending, In progress or Done.
 
+**Team**: the admin adds people in the Team tab (they sign in with their work email and FirstName123), removes them (history kept, can be restored) or deletes them permanently.
+
 **Leave**: only the admin assigns leave: paid, unpaid or partial. On a partial-leave day the person can still log a little work; task self-scores and the day's score go up to 4.
 
 **Sign-in (temporary passwords)**

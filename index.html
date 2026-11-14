@@ -467,6 +467,7 @@ input,select,textarea{max-width:100%}
 #my-side .mstats .num{font-size:24px!important}
 #my-side .mstats .small{font-size:12px;line-height:1.25}
 @media (max-width:820px){#my-side .mstats .num{font-size:28px!important}}
+.btn.danger{color:var(--coral-ink)}
 .site-foot{margin:8px 0 0;text-align:center;font-size:12px;color:var(--muted)}
 </style>
 
@@ -631,7 +632,8 @@ function testSignIn(email,pw){
   let ses=null;
   if(email===TEST_ADMIN.email&&pw===TEST_ADMIN.pw)ses={role:"admin"};
   else{const [local,domain]=email.split("@");
-    const uid=domain==="icsoln.com"?activeIds().find(id=>firstName(id).toLowerCase()===local):null;
+    const byEmail=Object.entries(S.emails?.emails||{}).find(([id,em])=>em===email&&S.members[id]?.status==="active")?.[0];
+    const uid=byEmail||(domain==="icsoln.com"?activeIds().find(id=>firstName(id).toLowerCase()===local&&!S.emails?.emails?.[id]||S.emails?.emails?.[id]===email):null);
     if(uid&&pw===firstName(uid)+"123")ses={role:"employee",uid};}
   if(!ses)return "Email or password is incorrect.";
   try{sessionStorage.setItem("ics-test-login",JSON.stringify(ses))}catch{}
@@ -708,8 +710,8 @@ const DEMO_SEED={"members/demo-krisha":{"demo":true,"name":"Krisha","routine":"C
 function memDB(){
   const KEY="ics-demo-db-v3";let docs;
   try{docs=JSON.parse(localStorage.getItem(KEY)||"null")}catch{}
-  if(!docs)docs=JSON.parse(JSON.stringify(DEMO_SEED));
-  else for(const p of Object.keys(DEMO_SEED))if(!(p in docs)&&/^(members|plans)\/demo-krisha/.test(p))docs[p]=JSON.parse(JSON.stringify(DEMO_SEED[p]));  // people added to the demo later
+  if(!docs){docs=JSON.parse(JSON.stringify(DEMO_SEED));docs["meta/added-krisha"]={at:0}}
+  else if(!docs["meta/added-krisha"]){for(const p of Object.keys(DEMO_SEED))if(!(p in docs)&&/^(members|plans)\/demo-krisha/.test(p))docs[p]=JSON.parse(JSON.stringify(DEMO_SEED[p]));docs["meta/added-krisha"]={at:Date.now()}}  // people added to the demo later
   const save=()=>{try{localStorage.setItem(KEY,JSON.stringify(docs))}catch{}};
   const subs=new Set();const fire=()=>setTimeout(()=>subs.forEach(f=>f()),0);
   const clone=v=>v==null?v:JSON.parse(JSON.stringify(v));
@@ -741,7 +743,7 @@ async function boot(){
     if(!s.metadata.fromCache){S.membersLoaded=true;clearTimeout(t);if(S.err&&S.err.startsWith("The tracker"))S.err=null}
     syncSubs();schedule()},e=>{clearTimeout(t);S.membersLoaded=true;S.err="Team list unavailable ("+e.code+").";schedule()});
   db2.collection("holidays").onSnapshot(s=>{S.holidays={};s.docs.forEach(d=>S.holidays[d.id]=d.data());schedule()},()=>{});
-  if(S.isAdmin)db2.doc("private/emails").onSnapshot(s=>{S.emails=s.exists?s.data():{emails:{}};if(!S.emails.emails)S.emails.emails={};schedule()},()=>{});
+  db2.doc("private/emails").onSnapshot(s=>{S.emails=s.exists?s.data():{emails:{}};if(!S.emails.emails)S.emails.emails={};schedule()},()=>{});
   if(S.isAdmin)db2.collection("requests").onSnapshot(s=>{S.requests={};s.docs.forEach(d=>S.requests[d.id]=d.data());schedule()},()=>{});
   else db2.doc("requests/"+S.me).onSnapshot(s=>{S.myReq=s.exists?s.data():null;schedule()},()=>{});
   render();
@@ -1263,17 +1265,37 @@ function planView(){
 
 /* team */
 function teamView(){
-  const reqs=Object.entries(S.requests).filter(([id])=>S.members[id]?.status!=="active");
   const mem=activeIds();
-  const out=[h("div",{class:"bar"},h("h2",{text:"Team"}),h("span",{class:"grow"}),
-    !isMember()?h("button",{class:"btn",onclick:async()=>{await S.db.doc("members/"+S.me).set({status:"active",title:"Admin",since:Date.now()});toast("You're on the team. Open My day to try the team screen.")}},"Add me to the team"):null)];
-  const rp=h("div",{class:"panel stack"},h("div",{class:"eyebrow",text:"Access requests"}));
-  if(!reqs.length)rp.append(h("p",{class:"muted",style:"margin:0",text:"No pending requests. Share this page with a team member from the Share menu; when they open it and tap Request access, they show up here."}));
-  else{const pl=h("div",{class:"people"});for(const[id,r]of reqs){const days=S.reqDays[id]=S.reqDays[id]||[...DEFAULT_DAYS];pl.append(personRow(id,r.title,[
-    h("div",null,h("div",{class:"small muted",text:"Working days"}),dayToggles(days,()=>render())),
-    h("button",{class:"btn primary sm",onclick:async()=>{await S.db.doc("members/"+id).set({status:"active",title:r.title||"",workdays:[...days],since:Date.now()});toast(nm(id)+" added")}},"Approve"),
-    h("button",{class:"btn sm",onclick:async()=>{await S.db.doc("requests/"+id).delete();toast("Request declined")}},"Decline")]))}rp.append(pl)}
-  out.push(rp);
+  const out=[h("div",{class:"bar"},h("h2",{text:"Team"}),h("span",{class:"grow"}),h("span",{class:"small muted",text:mem.length+" active"}))];
+  const N=S.newMem=S.newMem||{name:"",email:"",title:"",days:[...DEFAULT_DAYS],role:"member",pm:""};
+  const pmsAll=mem.filter(x=>S.members[x].role==="pm");
+  const inp=(k,id,ph,type="text")=>h("input",{type,id,value:N[k],placeholder:ph,autocomplete:"off",oninput:e=>N[k]=e.target.value});
+  const addBtn=h("button",{class:"btn primary",onclick:async()=>{
+    const name=N.name.trim().replace(/\s+/g," ").slice(0,60),email=N.email.trim().toLowerCase();
+    if(!name)return toast("Enter the person's name");
+    if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))return toast("Enter a valid work email");
+    if(!N.days.length)return toast("Pick at least one working day");
+    const taken=Object.entries(S.emails?.emails||{}).some(([id,em])=>em===email&&S.members[id])||mem.some(id=>!S.emails?.emails?.[id]&&firstName(id).toLowerCase()+"@icsoln.com"===email);
+    if(taken)return toast("Someone with this email is already on the team");
+    const id="m-"+Date.now().toString(36);addBtn.disabled=true;
+    try{await S.db.doc("members/"+id).set({name,title:N.title.trim().slice(0,60),workdays:[...N.days].sort(),role:N.role,pm:N.role==="pm"?"":N.pm,status:"active",since:Date.now()});
+      const ref=S.db.doc("private/emails");const cur=await ref.get();const data=cur.exists?cur.data():{emails:{}};data.emails={...(data.emails||{}),[id]:email};await ref.set(data);
+      S.lastAdded={name,email,pw:name.split(" ")[0]+"123"};S.newMem=null;render()}
+    catch(e){toast("Couldn't add ("+(e.code||"error")+")")}finally{addBtn.disabled=false}}},"Add person");
+  out.push(h("div",{class:"panel stack"},h("div",{class:"eyebrow",text:"Add a team member"}),
+    S.lastAdded?h("div",{class:"notice d",style:"display:flex;gap:10px;flex-wrap:wrap;align-items:center"},h("span",{class:"grow"},h("b",{text:S.lastAdded.name+" added. "}),"They sign in with "+S.lastAdded.email+" and the password "+S.lastAdded.pw+" (they'll be asked to change it in the hosted version)."),h("button",{class:"btn ghost sm",onclick:()=>{S.lastAdded=null;render()}},"OK")):null,
+    h("div",{class:"cols2",style:"gap:12px"},
+      h("div",{class:"field"},h("label",{for:"new-name",text:"Full name"}),inp("name","new-name","e.g. Riya Sharma")),
+      h("div",{class:"field"},h("label",{for:"new-email",text:"Work email (used to sign in)"}),inp("email","new-email","riya@icsoln.com","email")),
+      h("div",{class:"field"},h("label",{for:"new-title",text:"Job title (optional)"}),inp("title","new-title","e.g. Graphic Designer")),
+      h("div",{class:"field"},h("span",{class:"eyebrow",text:"Working days"}),dayToggles(N.days,()=>render()))),
+    h("div",{class:"bar"},h("div",{class:"seg",role:"group","aria-label":"Role"},
+        h("button",{"aria-pressed":String(N.role==="member"),onclick:()=>{N.role="member";render()}},"Team member"),
+        h("button",{"aria-pressed":String(N.role==="pm"),onclick:()=>{N.role="pm";N.pm="";render()}},"Project manager")),
+      N.role==="member"?h("div",{class:"field",style:"min-width:200px"},h("label",{for:"new-pm",class:"small",text:"Reports to"}),
+        h("select",{id:"new-pm",onchange:e=>N.pm=e.target.value},h("option",{value:"",selected:!N.pm||null},"Admin (no project manager)"),...pmsAll.map(x=>h("option",{value:x,selected:N.pm===x||null},nm(x))))):null,
+      h("span",{class:"grow"}),addBtn),
+    h("p",{class:"small muted",style:"margin:0",text:"Their first password is their first name followed by 123 (Riya Sharma → Riya123)."})));
   const mp=h("div",{class:"panel stack"},h("div",{class:"eyebrow",text:"Members · "+mem.length}));
   const pl=h("div",{class:"cols2"});
   for(const id of mem.sort((a,b)=>nm(a).localeCompare(nm(b)))){
@@ -1299,9 +1321,19 @@ function teamView(){
           if(dr.role!=="pm")for(const x of mem)if(S.members[x].pm===id)await S.db.doc("members/"+x).update({pm:""});
           const em=dr.email.trim().toLowerCase();if(em!==(S.emails.emails?.[id]||"")){const ref=S.db.doc("private/emails");const cur=await ref.get();const data=cur.exists?cur.data():{emails:{}};data.emails={...(data.emails||{}),[id]:em};await ref.set(data)}
           delete S.memDrafts[id];toast("Saved "+nm(id))}},"Save"),
-        h("button",{class:"btn ghost sm",onclick:e=>{if(e.target.dataset.armed){S.db.doc("members/"+id).update({status:"removed"}).then(()=>toast(nm(id)+" removed"));}else{e.target.dataset.armed="1";e.target.textContent="Confirm remove";setTimeout(()=>{e.target.textContent="Remove";delete e.target.dataset.armed},4000)}}},"Remove"))))}
+        h("button",{class:"btn ghost sm",onclick:e=>{if(e.target.dataset.armed){(async()=>{await S.db.doc("members/"+id).update({status:"removed"});for(const x of mem)if(S.members[x].pm===id)await S.db.doc("members/"+x).update({pm:""});toast(nm(id)+" removed. They can't sign in; their history is kept.")})();}else{e.target.dataset.armed="1";e.target.textContent="Confirm remove";setTimeout(()=>{e.target.textContent="Remove";delete e.target.dataset.armed},4000)}}},"Remove"))))}
   if(!mem.length)pl.append(h("p",{class:"muted",style:"margin:0",text:"No members yet."}));
   mp.append(pl);out.push(mp);
+  const gone=Object.keys(S.members).filter(id=>S.members[id].status==="removed").sort((a,b)=>nm(a).localeCompare(nm(b)));
+  if(gone.length){const rp=h("div",{class:"panel stack"},h("div",{class:"eyebrow",text:"Removed · "+gone.length}),
+    h("p",{class:"small muted",style:"margin:0",text:"Removed people can't sign in and don't appear in the ledger. Restore brings them back with their history; Delete permanently erases them for good."}));
+    for(const id of gone)rp.append(h("div",{class:"item",style:"align-items:center"},avatar(id),h("div",{style:"min-width:0"},h("b",{text:nm(id)}),h("div",{class:"small muted",text:(S.members[id].title||"")+(S.emails?.emails?.[id]?" · "+S.emails.emails[id]:"")})),
+      h("div",{style:"display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end"},
+        h("button",{class:"btn sm",onclick:async()=>{await S.db.doc("members/"+id).update({status:"active"});toast(nm(id)+" restored")}},"Restore"),
+        h("button",{class:"btn ghost sm danger",onclick:async e=>{if(!e.target.dataset.armed){e.target.dataset.armed="1";e.target.textContent="Click again to delete "+firstName(id);setTimeout(()=>{if(e.target.isConnected){e.target.textContent="Delete permanently";delete e.target.dataset.armed}},5000);return}
+          const n=nm(id);await S.db.doc("members/"+id).delete();const ref=S.db.doc("private/emails");const cur=await ref.get();if(cur.exists){const data=cur.data();if(data.emails){delete data.emails[id];await ref.set(data)}}
+          delete S.memDrafts[id];toast(n+" deleted permanently")}},"Delete permanently"))));
+    out.push(rp)}
   out.push(h("div",{class:"panel stack"},h("div",{class:"eyebrow",text:"How scoring works"}),rubricBlock(),
     h("p",{class:"muted small",style:"margin:0",text:"Everyone sees the team's scores. Tasks, updates and comments are visible only to the person, their project manager and the admin. Email addresses are only visible to admins."})));
   return out;
