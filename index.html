@@ -368,6 +368,51 @@ fieldset{border:0;padding:0;margin:0;display:grid;gap:8px}
 input[type=email],input[type=password]{background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:10px 12px;width:100%}
 .hbtn{background:transparent!important;color:#B9CCC8!important;border-color:rgba(255,255,255,.2)!important}
 .hbtn:hover{color:#fff!important}
+
+/* ===== responsive: phones and small tablets ===== */
+.status-list li>span:nth-child(2){flex:1 1 0;min-width:0;overflow-wrap:anywhere}
+.cols2{grid-template-columns:repeat(auto-fit,minmax(min(320px,100%),1fr))}
+.plan-grid{grid-template-columns:repeat(auto-fill,minmax(min(300px,100%),1fr))}
+.leaders{grid-template-columns:repeat(auto-fill,minmax(min(240px,100%),1fr))}
+.kpis{grid-template-columns:repeat(auto-fit,minmax(min(150px,46%),1fr))}
+main,.wrap{min-width:0}
+input,select,textarea{max-width:100%}
+.panel,.item,.rcard,.task,.notice{min-width:0;overflow-wrap:anywhere}
+@media (max-width:640px){
+  .brand{flex-wrap:wrap;gap:10px}
+  .brand h1{font-size:21px}
+  .brand .sub{font-size:10px;letter-spacing:.1em}
+  .brand img{width:28px}
+  .who{gap:8px}
+  .who>span:not(.av){display:none}
+  nav.tabs{margin-top:14px;gap:2px;scrollbar-width:none;-webkit-overflow-scrolling:touch}
+  nav.tabs::-webkit-scrollbar{display:none}
+  nav.tabs button{padding:9px 12px;font-size:14px}
+  .bar{gap:8px 10px}
+  .bar h2{font-size:21px;flex:1 1 150px;min-width:0}
+  .panel{padding:16px}
+  .ledger .name{min-width:0;padding:6px 8px}
+  .ledger .name .t{display:none}
+  .ledger .name .n{max-width:78px;font-size:13px}
+  .ledger .name .nwrap{gap:6px}
+  .ledger .name .av{width:24px;height:24px;font-size:11px}
+  .ledger td.sum{padding:0 8px}
+  .redo-form{margin-left:0}
+  .member-edit .row>label{flex-basis:100%}
+  .days button{white-space:nowrap}
+  .redo-form input[type=date],.redo-form select,.redo-form input[type=text]{flex:1 1 100%;width:100%;min-width:0}
+  .status-list .cm{padding-left:0}
+  .status-list .acts{margin-left:0;flex-basis:100%;justify-content:flex-end}
+  .item{grid-template-columns:auto minmax(0,1fr);gap:10px}
+  .item>:nth-child(3){grid-column:2}
+  .report .rr{grid-template-columns:auto minmax(0,1fr) auto;gap:8px}
+  .drawer{width:100%;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+  .toast{left:16px;right:16px;max-width:none;transform:none;text-align:center}
+}
+@media (max-width:380px){
+  .brand .sub{display:none}
+  .theme-sw button{padding:4px 8px}
+}
 .site-foot{margin:8px 0 0;text-align:center;font-size:12px;color:var(--muted)}
 </style>
 
@@ -397,12 +442,12 @@ const RUBRIC_ROWS=[
   ["3","Less work than expected."],
   ["2","No work given by the company (auto)."],
   ["≤4","Partial leave day: work logged on it scores up to 4."],
-  ["0","Leave (paid or unpaid), weekly off, holiday, or a day not filled the same day."],
+  ["0","Leave (paid or unpaid), weekly off, holiday, or a day not filled by 8 am IST the next day."],
   ["+","Worked on a holiday or weekly off: admin awards extra points."]
 ];
 const S={db:null,user:null,sample:null,me:null,isAdmin:false,
   members:{},requests:{},myReq:null,entries:{},scores:{},
-  month:ymOf(new Date()),view:"month",subs:{},membersLoaded:false,
+  month:todayKey().slice(0,7),view:"month",subs:{},membersLoaded:false,
   draft:null,draftDate:null,overrides:{},busy:false,drawer:null,err:null,plans:{},planDate:null,planDrafts:{},planWeek:false,routineDrafts:{},pendingRender:false,wdDrafts:{},redoOpen:null,holidays:{},leaves:{},emails:{emails:{}},hl:{hscope:"all",hsel:{},ltype:"paid"},reqDays:{},memDrafts:{}};
 const STATUS={worked:"Worked",nowork:"No work given"};
 const WD=["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
@@ -418,7 +463,12 @@ function partialOn(uid,ym,d){return leaveOn(uid,ym,d)?.type==="partial"}
 function taskMax(uid,ym,d){return partialOn(uid,ym,d)?PARTIAL_MAX:5}
 function leaveLabel(t){return t==="unpaid"?"Unpaid leave":t==="partial"?"Partial leave":"Paid leave"}
 function unlocked(uid,ym,d){return !!S.plans[uid+"|"+ym]?.days?.[pad(d)]?.unlocked}
-function canEditDay(uid,key){return key===todayKey()||unlocked(uid,key.slice(0,7),Number(key.slice(8)))}
+/* Every date and time is Indian Standard Time, whatever the device's own timezone. Updates stay open until 8 am IST the next day. */
+const GRACE_HOUR=8;
+function istParts(){const p={};for(const x of new Intl.DateTimeFormat("en-CA",{timeZone:"Asia/Kolkata",year:"numeric",month:"2-digit",day:"2-digit",hour:"2-digit",minute:"2-digit",hourCycle:"h23"}).formatToParts(new Date()))p[x.type]=x.value;return p}
+function graceOpen(key){return key===keyAdd(todayKey(),-1)&&Number(istParts().hour)%24<GRACE_HOUR}
+function fmtTime(ms){return new Date(ms).toLocaleString("en-IN",{timeZone:"Asia/Kolkata",dateStyle:"medium",timeStyle:"short"})+" IST"}
+function canEditDay(uid,key){return key===todayKey()||graceOpen(key)||unlocked(uid,key.slice(0,7),Number(key.slice(8)))}
 function keyAdd(k,n){const d=new Date(k+"T00:00:00");d.setDate(d.getDate()+n);return ymOf(d)+"-"+pad(d.getDate())}
 function fmtKey(k){return new Date(k+"T00:00:00").toLocaleDateString("en-IN",{weekday:"short",day:"numeric",month:"short"})}
 function dayToggles(arr,onchange){const box=h("div",{class:"days",role:"group","aria-label":"Working days"});
@@ -443,17 +493,17 @@ function planFor(uid,ym,d,depth=0){
   const out=[],seen=new Set();
   const add=(t,src,x={})=>{const k=tkey(t);if(seen.has(k)||(src==="carried"&&drop.has(k)))return;seen.add(k);out.push({k,text:t,src,...x})};
   lines(S.members[uid]?.routine).forEach(t=>add(t,"routine"));
-  (P.redo||[]).forEach(r=>r&&r.t&&add(r.t,"redo",{from:r.from,note:r.note||""}));
+  (P.redo||[]).forEach(r=>r&&r.t&&add(r.t,"redo",{from:r.from,note:r.note||"",fromUser:r.fromUser||""}));
   if(depth<CARRY_DEPTH){const pk=prevPlanDay(uid,key);if(pk){const e=S.entries[uid+"|"+pk.slice(0,7)]?.days?.[pk.slice(8)];
     for(const t of planFor(uid,pk.slice(0,7),Number(pk.slice(8)),depth+1)){if(t.src==="routine")continue;const v=taskVal(e?.checks?.[t.k]);if(v&&v.s!=null&&v.s>=taskMax(uid,pk.slice(0,7),Number(pk.slice(8))))continue;add(t.text,"carried",{from:t.from||pk,note:t.note||""})}}}
   lines(P.tasks).forEach(t=>add(t,"assigned"));
   return out}
-function srcTag(t){return t.src==="routine"?["","Daily routine"]:t.src==="carried"?["c","Carried over · pending since "+fmtKey(t.from)]:t.src==="redo"?["r","Redo · reposted from "+fmtKey(t.from)+(t.note?" · "+t.note:"")]:["a","Assigned"]}
+function srcTag(t){return t.src==="routine"?["","Daily routine"]:t.src==="carried"?["c","Carried over · pending since "+fmtKey(t.from)]:t.src==="redo"?["r",(t.fromUser?"Reassigned from "+nm(t.fromUser)+" · "+fmtKey(t.from):"Redo · reposted from "+fmtKey(t.from))+(t.note?" · "+t.note:"")]:["a","Assigned"]}
 
 
 function pad(n){return String(n).padStart(2,"0")}
 function ymOf(d){return d.getFullYear()+"-"+pad(d.getMonth()+1)}
-function todayKey(){const d=new Date();return ymOf(d)+"-"+pad(d.getDate())}
+function todayKey(){const p=istParts();return p.year+"-"+p.month+"-"+p.day}
 function daysIn(ym){const [y,m]=ym.split("-").map(Number);return new Date(y,m,0).getDate()}
 function dateOf(ym,d){const [y,m]=ym.split("-").map(Number);return new Date(y,m-1,d)}
 function isSunday(ym,d){return dateOf(ym,d).getDay()===0}
@@ -475,12 +525,12 @@ function dayInfo(uid,ym,d){
   const bonusDay=(hol||off)&&e?.status==="worked";
   if(sc&&sc.approved&&!(e&&e.at>sc.at&&e.status==="worked")) return {...b,kind:"scored",score:Number(sc.final),bonus:bonusDay};
   if(lv&&!partial) return {...b,kind:"leave",score:0,ltype:lv.type||"paid"};
-  if(partial&&!e&&key<today) return {...b,kind:"leave",score:0,ltype:"partial"};
+  if(partial&&!e&&key<today&&!graceOpen(key)) return {...b,kind:"leave",score:0,ltype:"partial"};
   if(e?.status==="leave") return {...b,kind:"leave",score:0,ltype:"paid"};
   if(bonusDay) return {...b,kind:"pend",score:null,offday:hol?"holiday":"weekly off"};
   if(hol) return {...b,kind:"holiday",score:0};
   if(off) return {...b,kind:"weekoff",score:0};
-  if(!e) return key>today?{...b,kind:"future",score:null}:key===today?{...b,kind:"today",score:null}:{...b,kind:"miss",score:0};
+  if(!e) return key>today?{...b,kind:"future",score:null}:key===today||graceOpen(key)?{...b,kind:"today",score:null,grace:key!==today}:{...b,kind:"miss",score:0};
   if(e.status==="nowork") return {...b,kind:"scored",score:2,auto:true};
   return {...b,kind:"pend",score:null};
 }
@@ -651,7 +701,7 @@ function dayChip(i){
   if(i.kind==="leave")return h("span",{class:"chip violet",text:leaveLabel(i.ltype)+(i.ltype==="partial"?" · nothing logged":"")});
   if(i.kind==="weekoff")return h("span",{class:"chip",text:"Weekly off"});
   if(i.kind==="holiday")return h("span",{class:"chip pink",text:"Holiday"+(i.hol?.reason?" · "+i.hol.reason:"")});
-  if(i.kind==="today")return h("span",{class:"chip ok",text:"Due today"});
+  if(i.kind==="today")return h("span",{class:"chip ok",text:i.grace?"Due by 8 am IST":"Due today"});
   if(i.auto)return h("span",{class:"chip sky",text:"No work given"});
   if(i.bonus)return h("span",{class:"chip pink",text:"Worked on "+(i.hol?"holiday":"weekly off")});
   return h("span",{class:"chip "+(i.score>5?"x":"ok"),text:i.score>5?"★ Extraordinary":"Scored"})}
@@ -718,7 +768,7 @@ function monthView(){
     h("button",{class:"btn icon-btn","aria-label":"Previous month",onclick:()=>{S.month=shiftMonth(ym,-1);syncSubs();render()}},"‹"),
     h("h2",{text:monthName(ym)}),
     h("button",{class:"btn icon-btn","aria-label":"Next month",onclick:()=>{S.month=shiftMonth(ym,1);syncSubs();render()}},"›"),
-    ym!==ymOf(new Date())?h("button",{class:"btn ghost sm",onclick:()=>{S.month=ymOf(new Date());syncSubs();render()}},"This month"):null,
+    ym!==todayKey().slice(0,7)?h("button",{class:"btn ghost sm",onclick:()=>{S.month=todayKey().slice(0,7);syncSubs();render()}},"This month"):null,
     h("span",{class:"grow"}),
     isMember()?h("button",{class:"btn primary",onclick:()=>{S.view="my";render()}},"Log today"):null,
     canManage()?h("button",{class:"btn",onclick:()=>{S.view="plan";render()}},"Plan tasks"):null,
@@ -774,7 +824,11 @@ function monthView(){
       h("span",{class:"pts",text:x.total}),
       h("div",{class:"meter","aria-hidden":"true"},h("i",{class:"m1",style:"width:"+((x.total-extraPts)/maxPts*100)+"%"}),h("i",{class:"m2",style:"width:"+(extraPts/maxPts*100)+"%"})),
       h("div",{class:"tags"},h("span",{class:"chip ok",text:x.avg.toFixed(1)+" avg"}),x.extra?h("span",{class:"chip x",text:"★ "+x.extra}):null,x.paid?h("span",{class:"chip violet",text:x.paid+" PL"}):null,x.unpaid?h("span",{class:"chip violet",text:x.unpaid+" UL"}):null,x.partial?h("span",{class:"chip violet",text:x.partial+" partial"}):null,x.bonus?h("span",{class:"chip pink",text:"+"+x.bonus+" off-day"}):null,x.pend?h("span",{class:"chip sky",text:x.pend+" pending"}):null,x.miss?h("span",{class:"chip coral",text:x.miss+" not filled"}):null)))});
-  return[bar,kpis,leaders,h("div",{class:"ledger-scroll"},h("table",{class:"ledger"},h("thead",null,head),body)),legend];
+  const sc=h("div",{class:"ledger-scroll",onscroll:e=>{S.ledgerX={ym,x:e.target.scrollLeft}}},h("table",{class:"ledger"},h("thead",null,head),body));
+  // keep the sideways scroll position across re-renders; on first view of the month, bring today's column into view (phones)
+  requestAnimationFrame(()=>{if(!sc.isConnected)return;if(S.ledgerX?.ym===ym){sc.scrollLeft=S.ledgerX.x;return}
+    const t=sc.querySelector("thead th.today"),nmc=sc.querySelector("thead th:first-child");if(t&&sc.scrollWidth>sc.clientWidth){sc.scrollLeft=Math.max(0,t.offsetLeft-(nmc?.offsetWidth||0)-t.offsetWidth*3)}S.ledgerX={ym,x:sc.scrollLeft}});
+  return[bar,kpis,leaders,sc,legend];
 }
 function heat(s){const p=[8,14,22,32,44,58][Math.max(0,Math.min(5,Math.round(s)))];return"background:color-mix(in srgb,var(--mint) "+p+"%,var(--surface))"}
 function cellBtn(uid,ym,d){
@@ -862,7 +916,7 @@ function myView(){
     checklist.append(h("li",{class:"task"+(S.needTasks?.includes(t.k)?" need":"")},
       h("div",{class:"tt"},h("div",{class:"src "+srcTag(t)[0],text:srcTag(t)[1]}),t.text),
       h("div",{class:"spick-wrap"},pick,h("span",{class:"small",text:v.s==null?(tmax===5?"Score 0–5 · 5 = perfectly done":"Score 0–4 · partial leave"):v.s===tmax?v.s+"/"+tmax+" · "+(tmax===5?"perfectly done":"best for a partial day"):v.s+"/"+tmax})),
-      h("div",{class:"tcomment"},h("label",{class:"sr",for:"tc-"+t.k,style:"position:absolute;left:-9999px",text:"Comment for "+t.text}),cm)))}
+      h("div",{class:"tcomment"},h("label",{class:"sr",for:"tc-"+t.k,style:"position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap",text:"Comment for "+t.text}),cm)))}
   const dateIn=h("input",{type:"date",id:"my-date",value:date,max:todayKey(),onchange:e=>{if(!e.target.value)return;S.draftDate=e.target.value;S.draft=null;
     if(e.target.value.slice(0,7)!==S.month){S.month=e.target.value.slice(0,7);syncSubs()}render()}});
   const seg=h("div",{class:"seg",role:"group","aria-label":"Day status"});
@@ -886,8 +940,10 @@ function myView(){
     lv?.type==="partial"?h("div",{class:"notice l",text:"You're on partial leave this day"+(lv.reason?" ("+lv.reason+")":"")+". Log any work you do; each task can score up to "+PARTIAL_MAX+"."}):null,
     hol&&!lv?h("div",{class:"notice h",text:"Holiday: "+(hol.reason||"Company holiday")+". If you worked today, log it and your admin can award extra points."}):null,
     off&&!hol&&!lv?h("div",{class:"notice d",text:"This is your weekly off. Worked anyway? Log it and your admin can award extra points."}):null,
-    locked&&!lv?h("div",{class:"notice lock",text:"Locked. Daily updates must be submitted the same day, before midnight. Ask your admin to unlock this day for a late entry."}):null,
-    !locked&&date===todayKey()&&!existing&&!off&&!hol?h("div",{class:"notice d",text:"Today's update is due before midnight. After that the day locks and scores 0."}):null,
+    locked&&!lv?h("div",{class:"notice lock",text:"Locked. Each day's update must be in by 8 am IST the next morning. Ask your admin or project manager to unlock this day for a late entry."}):null,
+    !locked&&(date===todayKey()||graceOpen(date))&&!existing&&!off&&!hol?h("div",{class:"notice d",text:date===todayKey()?"Today's update is due by 8 am IST tomorrow. After that the day locks and scores 0.":"This day is still open until 8 am IST today. After that it locks and scores 0."}):null,
+    date===todayKey()&&graceOpen(keyAdd(date,-1))&&isWorkDay(S.me,keyAdd(date,-1))&&!S.entries[S.me+"|"+keyAdd(date,-1).slice(0,7)]?.days?.[keyAdd(date,-1).slice(8)]?h("div",{class:"notice lock",style:"display:flex;gap:10px;align-items:center;flex-wrap:wrap;justify-content:space-between"},
+      h("span",{text:"Yesterday ("+fmtKey(keyAdd(date,-1))+") isn't filled yet. You can still log it until 8 am IST."}),h("button",{class:"btn sm",onclick:()=>{S.draftDate=keyAdd(date,-1);S.draft=null;if(S.draftDate.slice(0,7)!==S.month){S.month=S.draftDate.slice(0,7);syncSubs()}render()}},"Fill yesterday")):null,
     h("div",{class:"field"},h("span",{class:"eyebrow",text:"Status"}),seg),
     D.status==="worked"?[
       h("div",{class:"field"},h("span",{class:"eyebrow",text:"Your tasks for this day"}),plan.length?checklist:h("p",{class:"muted small",style:"margin:0",text:"No tasks assigned for this day. Describe your work in the daily update below."})),
@@ -895,7 +951,7 @@ function myView(){
       h("div",{class:"field"},h("label",{for:"my-tasks",text:"Other work (optional)"}),tasks),
       h("p",{class:"muted small",style:"margin:0",text:"Claude reads this and suggests a score; your admin approves it."})]:
       h("div",{class:"field"},h("label",{for:"my-done",text:"What were you available for? (optional)"}),done),
-    locked?null:h("div",{class:"bar"},save,existing?h("span",{class:"muted small",text:"Last saved "+new Date(existing.at).toLocaleString("en-IN",{dateStyle:"medium",timeStyle:"short"})}):null));
+    locked?null:h("div",{class:"bar"},save,existing?h("span",{class:"muted small",text:"Last saved "+fmtTime(existing.at)}):null));
   if(locked)form.querySelectorAll("textarea,.seg button").forEach(el=>el.disabled=true);
   return[h("div",{class:"split"},form,h("div",{class:"stack",id:"my-side"}))];
 }
@@ -910,7 +966,7 @@ function renderMyHistory(){
       st.miss?h("div",null,h("div",{class:"num",style:"font-size:30px;color:var(--coral-ink)",text:st.miss}),h("div",{class:"muted small",text:"not filled"})):null))];
   const notes=myNotices();if(notes.length)kids.push(h("div",{class:"panel stack"},h("div",{class:"eyebrow",text:"Notices"}),...notes));
   const list=h("div",{class:"list"});
-  for(let d=Math.min(n,ym===ymOf(new Date())?new Date().getDate():n);d>=1;d--){
+  for(let d=Math.min(n,ym===todayKey().slice(0,7)?Number(todayKey().slice(8)):n);d>=1;d--){
     const i=dayInfo(S.me,ym,d);if(i.kind==="weekoff"||i.kind==="future")continue;
     list.append(h("div",{class:"item",style:"cursor:pointer",onclick:()=>{S.draftDate=ym+"-"+pad(d);S.draft=null;render()}},
       h("span",{class:"date",text:dateOf(ym,d).toLocaleDateString("en-IN",{day:"2-digit",month:"short"})}),
@@ -967,7 +1023,7 @@ For each entry give a reason of at most 25 words addressed to the manager.`;
 async function runAI(items){
   S.busy=true;render();
   const payload=items.map(x=>({id:x.id,
-    assigned_tasks:planFor(x.uid,x.ym,x.d).map(t=>{const v=taskVal(x.i.e.checks?.[t.k]);return{task:t.text.slice(0,300),type:t.src==="carried"?"carried over, unfinished since "+t.from:t.src==="redo"?"redo requested by manager"+(t.note?": "+t.note:""):t.src,self_score_out_of_5:v?.s??"not scored",employee_comment:(v?.c||"").slice(0,800)}}),
+    assigned_tasks:planFor(x.uid,x.ym,x.d).map(t=>{const v=taskVal(x.i.e.checks?.[t.k]);return{task:t.text.slice(0,300),type:t.src==="carried"?"carried over, unfinished since "+t.from:t.src==="redo"?(t.fromUser?"reassigned to this person because an earlier attempt by a colleague was not satisfactory":"redo requested by manager")+(t.note?": "+t.note:""):t.src,self_score_out_of_5:v?.s??"not scored",employee_comment:(v?.c||"").slice(0,800)}}),
     daily_update:(x.i.e.done||"").slice(0,3000),other_work:(x.i.e.tasks||"").slice(0,1500),
     off_day:x.i.offday||null,partial_leave:!!x.i.partial}));
   try{
@@ -986,16 +1042,21 @@ function statusList(plan,checks,ctx){const ul=h("ul",{class:"status-list"});
   for(const t of plan){const v=taskVal(checks?.[t.k]);const tag=srcTag(t);const fk=ctx?ctx.uid+"|"+ctx.key+"|"+t.k:"";
     const canAct=ctx&&manages(ctx.uid)&&t.src!=="routine";
     ul.append(h("li",null,h("span",{class:"chip "+sClass(v?.s),style:"min-width:44px;text-align:center",text:v?.s!=null?v.s+"/5":"–/5"}),
-      h("span",null,t.src==="carried"||t.src==="redo"?h("span",{class:"tag "+tag[0],text:t.src==="carried"?"Carried · ":"Redo · "}):null,t.text),
-      canAct?h("span",{class:"acts"},h("button",{class:"btn sm",onclick:()=>{S.redoOpen=S.redoOpen===fk?null:fk;render()}},"Redo")):null,
+      h("span",null,t.src==="carried"||t.src==="redo"?h("span",{class:"tag "+tag[0],text:t.src==="carried"?"Carried · ":t.fromUser?"Reassigned · ":"Redo · "}):null,t.text),
+      canAct?h("span",{class:"acts"},h("button",{class:"btn sm",onclick:()=>{S.redoOpen=S.redoOpen===fk?null:fk;render()}},"Redo / reassign")):null,
       v?.c?h("span",{class:"cm",text:v.c}):null,
       canAct&&S.redoOpen===fk?redoForm(ctx.uid,ctx.key,t):null))}
   return ul}
+function reassignTargets(uid){return managedIds().filter(id=>id!==uid&&S.members[id]?.status==="active")}
 function redoForm(uid,fromKey,t){
   const id="rd-"+t.k;const di=h("input",{type:"date",id:id+"-d",value:redoDefault(uid,fromKey),"aria-label":"Repost on"});
-  const ni=h("input",{type:"text",id:id+"-n",placeholder:"What to fix (shown to "+nm(uid)+")","aria-label":"Redo note"});
-  return h("div",{class:"redo-form"},h("b",{class:"small",text:"Repost for"}),di,ni,
-    h("button",{class:"btn primary sm",onclick:()=>{const k=di.value;if(!k)return toast("Pick a date");if(!isWorkDay(uid,k))return toast(fmtKey(k)+" isn't a working day for "+nm(uid));doRedo(uid,k,t.text,fromKey,ni.value.trim())}},"Repost task"),
+  const ni=h("input",{type:"text",id:id+"-n",placeholder:"What to fix (shown to "+nm(uid)+")","aria-label":"Note"});
+  const others=reassignTargets(uid);
+  const who=h("select",{id:id+"-u","aria-label":"Give this task to",onchange:()=>{di.value=redoDefault(who.value,fromKey);ni.placeholder=who.value===uid?"What to fix (shown to "+nm(uid)+")":"Note for "+nm(who.value)+" (optional)";go.textContent=who.value===uid?"Repost task":"Reassign task"}},
+    h("option",{value:uid},nm(uid)+" again"),...others.map(o=>h("option",{value:o},nm(o))));
+  const go=h("button",{class:"btn primary sm",onclick:()=>{const k=di.value,to=who.value;if(!k)return toast("Pick a date");if(!isWorkDay(to,k))return toast(fmtKey(k)+" isn't a working day for "+nm(to));
+    if(to===uid)doRedo(uid,k,t.text,fromKey,ni.value.trim());else doReassign(uid,to,k,t.text,fromKey,ni.value.trim())}},"Repost task");
+  return h("div",{class:"redo-form"},h("b",{class:"small",text:"Give to"}),others.length?who:h("span",{class:"small",text:nm(uid)}),di,ni,go,
     h("button",{class:"btn ghost sm",onclick:()=>{S.redoOpen=null;render()}},"Cancel"))}
 
 /* plan */
@@ -1006,6 +1067,14 @@ async function doRedo(uid,key,text,from,note){
   const redo=(P.redo||[]).filter(r=>tkey(r.t)!==k).concat([{t:text,from,note:note.slice(0,200),by:S.me,at:Date.now()}]);
   try{await writeDays("plans/"+uid+"/months/"+key.slice(0,7),{[key.slice(8)]:{redo,drop:(P.drop||[]).filter(x=>x!==k)}});S.redoOpen=null;toast("Reposted for "+nm(uid)+" on "+fmtKey(key));render()}
   catch(e){if(e.code!=="preview")toast("Couldn't repost ("+e.code+")")}}
+async function doReassign(fromUid,toUid,key,text,fromKey,note){
+  const k=tkey(text),P=planDoc(toUid,key)||{};
+  const redo=(P.redo||[]).filter(r=>tkey(r.t)!==k).concat([{t:text,from:fromKey,fromUser:fromUid,note:note.slice(0,200),by:S.me,at:Date.now()}]);
+  const nk=nextPlanDay(fromUid,fromKey),Q=planDoc(fromUid,nk)||{};   // stop it carrying for the first person
+  try{await writeDays("plans/"+toUid+"/months/"+key.slice(0,7),{[key.slice(8)]:{redo,drop:(P.drop||[]).filter(x=>x!==k)}});
+    await writeDays("plans/"+fromUid+"/months/"+nk.slice(0,7),{[nk.slice(8)]:{drop:[...new Set([...(Q.drop||[]),k])],redo:(Q.redo||[]).filter(r=>tkey(r.t)!==k)}});
+    S.redoOpen=null;toast("Reassigned to "+nm(toUid)+" on "+fmtKey(key));render()}
+  catch(e){if(e.code!=="preview")toast("Couldn't reassign ("+e.code+")")}}
 async function removePlanItem(uid,key,t){
   const P=planDoc(uid,key)||{};
   const patch=t.src==="redo"?{redo:(P.redo||[]).filter(r=>tkey(r.t)!==t.k)}:{drop:[...new Set([...(P.drop||[]),t.k])]};
@@ -1016,7 +1085,7 @@ function autoList(uid,key){
   if(!items.length)return null;
   const future=key>todayKey();
   return h("div",{class:"field"},h("span",{class:"eyebrow",text:"Added automatically"+(future?" (if still unfinished)":"")}),
-    h("div",{class:"auto-list"},...items.map(t=>{const tg=srcTag(t);return h("div",{class:"auto-item"},h("span",{class:"tag "+tg[0],text:t.src==="carried"?"Carried":"Redo"}),h("span",{class:"tt"},t.text,h("span",{class:"small muted",text:" · "+(t.src==="carried"?"since ":"from ")+fmtKey(t.from)+(t.note?" · "+t.note:"")})),
+    h("div",{class:"auto-list"},...items.map(t=>{const tg=srcTag(t);return h("div",{class:"auto-item"},h("span",{class:"tag "+tg[0],text:t.src==="carried"?"Carried":t.fromUser?"Reassigned":"Redo"}),h("span",{class:"tt"},t.text,h("span",{class:"small muted",text:" · "+(t.src==="carried"?"since ":t.fromUser?"from "+nm(t.fromUser)+", ":"from ")+fmtKey(t.from)+(t.note?" · "+t.note:"")})),
       h("button",{class:"btn ghost sm",onclick:()=>removePlanItem(uid,key,t)},"Remove"))})));
 }
 function planText(uid,key){const[y,m,dd]=key.split("-");return S.plans[uid+"|"+y+"-"+m]?.days?.[dd]?.tasks||""}
