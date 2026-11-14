@@ -455,6 +455,18 @@ input,select,textarea{max-width:100%}
   .tcard>summary{gap:8px;padding:10px}
   .addtask input{flex-basis:100%}
 }
+
+/* My day: narrower side column so the task list gets the room */
+.split{grid-template-columns:minmax(0,1fr) minmax(250px,310px)}
+#my-side{gap:10px}
+#my-side .panel{padding:16px}
+#my-side .item{padding:8px 12px;gap:10px;align-items:center}
+#my-side .notice{padding:8px 10px;font-size:13px}
+@media (max-width:820px){.split{grid-template-columns:1fr}}
+#my-side .mstats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px!important}
+#my-side .mstats .num{font-size:24px!important}
+#my-side .mstats .small{font-size:12px;line-height:1.25}
+@media (max-width:820px){#my-side .mstats .num{font-size:28px!important}}
 .site-foot{margin:8px 0 0;text-align:center;font-size:12px;color:var(--muted)}
 </style>
 
@@ -1047,7 +1059,7 @@ function renderMyHistory(){
   const side=document.getElementById("my-side");if(!side)return;
   const ym=S.month,n=daysIn(ym),st=monthStats(S.me,ym);
   const kids=[h("div",{class:"panel"},h("div",{class:"eyebrow",text:monthName(ym)}),
-    h("div",{class:"bar",style:"margin-top:10px;gap:28px"},
+    h("div",{class:"bar mstats",style:"margin-top:10px;gap:28px"},
       h("div",null,h("div",{class:"num",style:"font-size:30px",text:st.total}),h("div",{class:"muted small",text:"points"})),
       h("div",null,h("div",{class:"num",style:"font-size:30px",text:st.avg.toFixed(1)}),h("div",{class:"muted small",text:"avg / day"})),
       h("div",null,h("div",{class:"num",style:"font-size:30px",text:st.leaves}),h("div",{class:"muted small",text:"leave days"})),
