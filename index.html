@@ -548,6 +548,16 @@ function writeDays(path,patch){
     if(s.exists)await ref.update({days:patch});else await ref.set({days:patch})};
   const p=(queues[path]||Promise.resolve()).then(run);queues[path]=p.catch(()=>{});return p}
 function activeIds(){return Object.keys(S.members).filter(id=>S.members[id].status==="active")}
+/* Roles: admin sees and manages everyone. A project manager sees their own data and the team members
+   assigned to them (members[uid].pm), and plans, reviews, redoes and unlocks for those members only.
+   A team member sees only their own data. */
+function isPM(){return!S.isAdmin&&S.members[S.me]?.role==="pm"}
+function canManage(){return S.isAdmin||isPM()}
+function manages(uid){return S.isAdmin?true:isPM()&&uid!==S.me&&S.members[uid]?.pm===S.me}
+function managedIds(){return S.isAdmin?activeIds():isPM()?activeIds().filter(id=>manages(id)):[]}
+function visibleIds(){if(S.isAdmin)return activeIds();const v=new Set([S.me,...managedIds()]);return activeIds().filter(id=>v.has(id))}
+function roleLabel(uid){return S.members[uid]?.role==="pm"?"Project manager":"Team member"}
+
 function syncSubs(){
   const want=new Set();
   const months=new Set([S.month,shiftMonth(S.month,-1),todayKey().slice(0,7),shiftMonth(todayKey().slice(0,7),-1)]);
@@ -561,9 +571,9 @@ let rq=0;function schedule(){if(rq)return;rq=requestAnimationFrame(()=>{rq=0;ren
 
 /* ---- Demo mode: for visitors not signed in to claude.ai the shared database isn't available,
    so the page runs on sample data kept in this browser only. ---- */
-const DEMO_SEED={"plans/demo-praveen/months/2026-11":{"days":{"11":{"at":1794380000000,"by":"demo","tasks":"EPTECH homepage: remaining 2 feedback points\nCampusin: college detail gallery"},"02":{"at":1793539800000,"by":"demo","tasks":"EPTECH homepage: build hero section\nEPTECH homepage: services grid"},"03":{"at":1793626200000,"by":"demo","tasks":"EPTECH homepage: testimonials slider\nFix ASNFS contact form spam"},"04":{"at":1793712600000,"by":"demo","tasks":"EPTECH homepage: footer + mobile QA"},"07":{"at":1793971800000,"by":"demo","tasks":"Campusin: fix pagination\nCampusin: college detail page layout"},"09":{"at":1794144600000,"by":"demo","tasks":"EPTECH homepage: client feedback round 1 fixes\nCampusin: college detail gallery"}}},"plans/demo-priyanshi/months/2026-11":{"days":{"11":{"at":1794380000000,"by":"demo","tasks":"Campusin: 2 blog posts\nadvantAGE Seniors: monthly SEO report"},"02":{"at":1793539800000,"by":"demo","tasks":"advantAGE Seniors: fix 404s from SEO audit\nWrite 2 blog posts for Campusin"},"03":{"at":1793626200000,"by":"demo","tasks":"advantAGE Seniors: meta titles for 40 pages"},"04":{"at":1793712600000,"by":"demo","tasks":"Campusin: keyword research for engineering pages"},"06":{"at":1793885400000,"by":"demo","tasks":"IC Solutions Instagram: 5 posts for next week"},"07":{"at":1793971800000,"by":"demo","tasks":"advantAGE Seniors: remaining 12 meta titles\nEPTECH: on-page SEO checklist"},"09":{"at":1794144600000,"by":"demo","tasks":"Campusin: 2 blog posts\nadvantAGE Seniors: monthly SEO report"}}},"scores/demo-praveen/months/2026-11":{"days":{"02":{"ai":5,"approved":true,"at":1793629800000,"by":"demo","final":5,"kind":"scored","reason":"All assigned items completed and verifiable on staging."},"03":{"ai":4,"approved":true,"at":1793716200000,"by":"demo","final":4,"kind":"scored","reason":"Slider done and spam fix verified; one routine item partly done."},"04":{"ai":7,"approved":true,"at":1793802600000,"by":"demo","final":7,"kind":"scored","reason":"Normal workload finished plus a late-night malware recovery that saved the client site. Extraordinary."},"07":{"ai":4,"aiAt":1794058260000,"approved":false,"reason":"Pagination fixed; detail page mostly done. Solid day with one item partly open."}}},"scores/demo-priyanshi/months/2026-11":{"days":{"02":{"ai":5,"approved":true,"at":1793629800000,"by":"demo","final":5,"kind":"scored","reason":"Clear output with counts and titles; all tasks complete."},"03":{"ai":3,"approved":true,"at":1793716200000,"by":"demo","final":3,"kind":"scored","reason":"Only 28 of 40 pages done; lighter day than planned."},"04":{"ai":5,"approved":true,"at":1793802600000,"by":"demo","final":5,"kind":"scored","reason":"Complete, specific deliverable."},"06":{"ai":5,"approved":true,"at":1793975400000,"by":"demo","final":5,"kind":"scored","reason":"All 5 posts done and scheduled."},"07":{"ai":5,"aiAt":1794058260000,"approved":false,"reason":"Assigned work complete plus a schema fix; a full, productive day."}}},"entries/demo-praveen/months/2026-11":{"days":{"02":{"at":1793626200000,"checks":{"t1bdr22s":"done","t1rat91n":"done","t1v4vhxk":"done","t631sb5":"done"},"done":"Hero section done with the new video background and CTA, pushed to staging (staging.ep-techsolutions.com). Services grid built for desktop; mobile breakpoints done too. Replied to 3 client tickets.","status":"worked","tasks":""},"03":{"at":1793712600000,"checks":{"t1bdr22s":"done","t1rat91n":"done","tnqbhw8":"done","txbq2al":"partial"},"done":"Testimonials slider done. ASNFS contact form: added honeypot + reCAPTCHA v3, spam stopped since 3pm. Tracker updated.","status":"worked","tasks":""},"04":{"at":1793799000000,"checks":{"t1bdr22s":"done","t1rat91n":"done","t3xfnz6":"done"},"done":"Footer done, full mobile QA on 6 devices, fixed 14 layout bugs. Also late evening ASNFS got hit by malware again: cleaned 212 infected files, restored from backup, changed all passwords, site back by 10:40pm.","status":"worked","tasks":"Emergency malware cleanup on asnfs.org"},"06":{"at":1793971800000,"checks":{},"done":"Campusin API credentials were blocked by client, waiting on them all day. Did internal code cleanup.","status":"nowork","tasks":""},"07":{"at":1794058200000,"checks":{"t1742420":"partial","t1bdr22s":"done","t1c2o5kg":"done","t1rat91n":"done"},"done":"Pagination fixed. College detail page layout 70% done, gallery section pending.","status":"worked","tasks":""},"09":{"at":1794229000000,"checks":{"t1bdr22s":"done","t1rat91n":"done","thoyz8a":"done"},"done":"EPTECH: done 9 of 11 feedback points, 2 need client content. Campusin gallery not started yet.","status":"worked","tasks":""}}},"entries/demo-priyanshi/months/2026-11":{"days":{"02":{"at":1793626200000,"checks":{"t1i98d52":"done","t1rat91n":"done","t35h08n":"done","tzle3ld":"done"},"done":"Fixed 37 broken links on advantageseniors.org with 301 redirects, resubmitted sitemap. Wrote 2 blogs (1,200 words each) for Campusin: 'Top MBA colleges in Assam' and 'NEET counselling guide', sent for review.","status":"worked","tasks":""},"03":{"at":1793712600000,"checks":{"t1rat91n":"done","t35h08n":"done","th066qs":"partial"},"done":"Rewrote meta titles + descriptions for 28 of 40 pages.","status":"worked","tasks":""},"04":{"at":1793799000000,"checks":{"t1rat91n":"done","t35h08n":"done","tcqvmyb":"done"},"done":"Keyword sheet done: 180 keywords grouped into 12 clusters with volume and difficulty. Shared on Drive.","status":"worked","tasks":""},"05":{"at":1793885400000,"checks":{},"done":"Family function","status":"leave","tasks":""},"06":{"at":1793971800000,"checks":{"t1io0mrl":"done","t1rat91n":"done","t35h08n":"done"},"done":"Designed and scheduled 5 posts on Meta Business Suite. Captions approved by Anurag.","status":"worked","tasks":""},"07":{"at":1794058200000,"checks":{"t129teao":"done","t1rat91n":"done","t1s711hi":"done","t35h08n":"done"},"done":"Finished remaining 12 meta titles. EPTECH SEO checklist done for homepage and 4 service pages. Also fixed schema markup errors that Search Console flagged.","status":"worked","tasks":""}}},"leaves/demo-priyanshi/months/2026-11":{"days":{"05":{"at":1793800000000,"by":"demo","reason":"Family function","type":"paid"}}},"members/demo-priyanshi":{"demo":true,"name":"Priyanshi","routine":"Check Search Console alerts\nUpdate project tracker","since":1794200400000,"status":"active","title":"SEO & Content Executive","workdays":[1,2,3,4,5]},"members/demo-praveen":{"demo":true,"name":"Praveen","routine":"Check client emails and support tickets\nUpdate project tracker","since":1794200400000,"status":"active","title":"Web Developer","workdays":[1,2,3,5,6]},"holidays/2026-11":{"days":{"24":{"reason":"Guru Nanak Jayanti","scope":"all","by":"demo","at":1794380000000}}}};
+const DEMO_SEED={"plans/demo-praveen/months/2026-11":{"days":{"11":{"at":1794380000000,"by":"demo","tasks":"EPTECH homepage: remaining 2 feedback points\nCampusin: college detail gallery"},"02":{"at":1793539800000,"by":"demo","tasks":"EPTECH homepage: build hero section\nEPTECH homepage: services grid"},"03":{"at":1793626200000,"by":"demo","tasks":"EPTECH homepage: testimonials slider\nFix ASNFS contact form spam"},"04":{"at":1793712600000,"by":"demo","tasks":"EPTECH homepage: footer + mobile QA"},"07":{"at":1793971800000,"by":"demo","tasks":"Campusin: fix pagination\nCampusin: college detail page layout"},"09":{"at":1794144600000,"by":"demo","tasks":"EPTECH homepage: client feedback round 1 fixes\nCampusin: college detail gallery"}}},"plans/demo-priyanshi/months/2026-11":{"days":{"11":{"at":1794380000000,"by":"demo","tasks":"Campusin: 2 blog posts\nadvantAGE Seniors: monthly SEO report"},"02":{"at":1793539800000,"by":"demo","tasks":"advantAGE Seniors: fix 404s from SEO audit\nWrite 2 blog posts for Campusin"},"03":{"at":1793626200000,"by":"demo","tasks":"advantAGE Seniors: meta titles for 40 pages"},"04":{"at":1793712600000,"by":"demo","tasks":"Campusin: keyword research for engineering pages"},"06":{"at":1793885400000,"by":"demo","tasks":"IC Solutions Instagram: 5 posts for next week"},"07":{"at":1793971800000,"by":"demo","tasks":"advantAGE Seniors: remaining 12 meta titles\nEPTECH: on-page SEO checklist"},"09":{"at":1794144600000,"by":"demo","tasks":"Campusin: 2 blog posts\nadvantAGE Seniors: monthly SEO report"}}},"scores/demo-praveen/months/2026-11":{"days":{"02":{"ai":5,"approved":true,"at":1793629800000,"by":"demo","final":5,"kind":"scored","reason":"All assigned items completed and verifiable on staging."},"03":{"ai":4,"approved":true,"at":1793716200000,"by":"demo","final":4,"kind":"scored","reason":"Slider done and spam fix verified; one routine item partly done."},"04":{"ai":7,"approved":true,"at":1793802600000,"by":"demo","final":7,"kind":"scored","reason":"Normal workload finished plus a late-night malware recovery that saved the client site. Extraordinary."},"07":{"ai":4,"aiAt":1794058260000,"approved":false,"reason":"Pagination fixed; detail page mostly done. Solid day with one item partly open."}}},"scores/demo-priyanshi/months/2026-11":{"days":{"02":{"ai":5,"approved":true,"at":1793629800000,"by":"demo","final":5,"kind":"scored","reason":"Clear output with counts and titles; all tasks complete."},"03":{"ai":3,"approved":true,"at":1793716200000,"by":"demo","final":3,"kind":"scored","reason":"Only 28 of 40 pages done; lighter day than planned."},"04":{"ai":5,"approved":true,"at":1793802600000,"by":"demo","final":5,"kind":"scored","reason":"Complete, specific deliverable."},"06":{"ai":5,"approved":true,"at":1793975400000,"by":"demo","final":5,"kind":"scored","reason":"All 5 posts done and scheduled."},"07":{"ai":5,"aiAt":1794058260000,"approved":false,"reason":"Assigned work complete plus a schema fix; a full, productive day."}}},"entries/demo-praveen/months/2026-11":{"days":{"02":{"at":1793626200000,"checks":{"t1bdr22s":"done","t1rat91n":"done","t1v4vhxk":"done","t631sb5":"done"},"done":"Hero section done with the new video background and CTA, pushed to staging (staging.ep-techsolutions.com). Services grid built for desktop; mobile breakpoints done too. Replied to 3 client tickets.","status":"worked","tasks":""},"03":{"at":1793712600000,"checks":{"t1bdr22s":"done","t1rat91n":"done","tnqbhw8":"done","txbq2al":"partial"},"done":"Testimonials slider done. ASNFS contact form: added honeypot + reCAPTCHA v3, spam stopped since 3pm. Tracker updated.","status":"worked","tasks":""},"04":{"at":1793799000000,"checks":{"t1bdr22s":"done","t1rat91n":"done","t3xfnz6":"done"},"done":"Footer done, full mobile QA on 6 devices, fixed 14 layout bugs. Also late evening ASNFS got hit by malware again: cleaned 212 infected files, restored from backup, changed all passwords, site back by 10:40pm.","status":"worked","tasks":"Emergency malware cleanup on asnfs.org"},"06":{"at":1793971800000,"checks":{},"done":"Campusin API credentials were blocked by client, waiting on them all day. Did internal code cleanup.","status":"nowork","tasks":""},"07":{"at":1794058200000,"checks":{"t1742420":"partial","t1bdr22s":"done","t1c2o5kg":"done","t1rat91n":"done"},"done":"Pagination fixed. College detail page layout 70% done, gallery section pending.","status":"worked","tasks":""},"09":{"at":1794229000000,"checks":{"t1bdr22s":"done","t1rat91n":"done","thoyz8a":"done"},"done":"EPTECH: done 9 of 11 feedback points, 2 need client content. Campusin gallery not started yet.","status":"worked","tasks":""}}},"entries/demo-priyanshi/months/2026-11":{"days":{"02":{"at":1793626200000,"checks":{"t1i98d52":"done","t1rat91n":"done","t35h08n":"done","tzle3ld":"done"},"done":"Fixed 37 broken links on advantageseniors.org with 301 redirects, resubmitted sitemap. Wrote 2 blogs (1,200 words each) for Campusin: 'Top MBA colleges in Assam' and 'NEET counselling guide', sent for review.","status":"worked","tasks":""},"03":{"at":1793712600000,"checks":{"t1rat91n":"done","t35h08n":"done","th066qs":"partial"},"done":"Rewrote meta titles + descriptions for 28 of 40 pages.","status":"worked","tasks":""},"04":{"at":1793799000000,"checks":{"t1rat91n":"done","t35h08n":"done","tcqvmyb":"done"},"done":"Keyword sheet done: 180 keywords grouped into 12 clusters with volume and difficulty. Shared on Drive.","status":"worked","tasks":""},"05":{"at":1793885400000,"checks":{},"done":"Family function","status":"leave","tasks":""},"06":{"at":1793971800000,"checks":{"t1io0mrl":"done","t1rat91n":"done","t35h08n":"done"},"done":"Designed and scheduled 5 posts on Meta Business Suite. Captions approved by Anurag.","status":"worked","tasks":""},"07":{"at":1794058200000,"checks":{"t129teao":"done","t1rat91n":"done","t1s711hi":"done","t35h08n":"done"},"done":"Finished remaining 12 meta titles. EPTECH SEO checklist done for homepage and 4 service pages. Also fixed schema markup errors that Search Console flagged.","status":"worked","tasks":""}}},"leaves/demo-priyanshi/months/2026-11":{"days":{"05":{"at":1793800000000,"by":"demo","reason":"Family function","type":"paid"}}},"members/demo-priyanshi":{"demo":true,"name":"Priyanshi","routine":"Check Search Console alerts\nUpdate project tracker","since":1794200400000,"status":"active","title":"SEO & Content \u00b7 Project Manager","workdays":[1,2,3,4,5],"role":"pm"},"members/demo-praveen":{"demo":true,"name":"Praveen","routine":"Check client emails and support tickets\nUpdate project tracker","since":1794200400000,"status":"active","title":"Web Developer","workdays":[1,2,3,5,6],"role":"member","pm":"demo-priyanshi"},"holidays/2026-11":{"days":{"24":{"reason":"Guru Nanak Jayanti","scope":"all","by":"demo","at":1794380000000}}}};
 function memDB(){
-  const KEY="ics-demo-db-v1";let docs;
+  const KEY="ics-demo-db-v2";let docs;
   try{docs=JSON.parse(localStorage.getItem(KEY)||"null")}catch{}
   if(!docs)docs=JSON.parse(JSON.stringify(DEMO_SEED));
   const save=()=>{try{localStorage.setItem(KEY,JSON.stringify(docs))}catch{}};
@@ -643,15 +653,16 @@ function themeSwitch(){const cur=curTheme();const mk=(t,icon,label)=>{const b=h(
 function renderHeader(){
   const who=document.getElementById("who");who.replaceChildren();
   if(S.locked){who.append(themeSwitch());document.getElementById("tabs").replaceChildren();return}
-  if(S.asUser&&!S.preview)who.append(h("span",null,nm(S.me),h("br"),h("span",{class:"small"},"Team member")),avatar(S.me));
-  else if(S.preview)who.append(h("span",null,nm(S.me),h("br"),h("span",{class:"small"},"Team member (preview)")),avatar(S.me));
-  else if(S.me&&S.P?.[S.me]){who.append(h("span",null,S.P[S.me].name||"You",h("br"),h("span",{class:"small"},S.isAdmin?"Admin":(isMember()?"Team member":"Not on team yet"))),h("img",{src:S.P[S.me].avatarUrl,alt:""}))}
+  if(S.asUser&&!S.preview)who.append(h("span",null,nm(S.me),h("br"),h("span",{class:"small"},roleLabel(S.me))),avatar(S.me));
+  else if(S.preview)who.append(h("span",null,nm(S.me),h("br"),h("span",{class:"small"},roleLabel(S.me)+" (preview)")),avatar(S.me));
+  else if(S.me&&S.P?.[S.me]){who.append(h("span",null,S.P[S.me].name||"You",h("br"),h("span",{class:"small"},S.isAdmin?"Admin":isPM()?"Project manager":(isMember()?"Team member":"Not on team yet"))),h("img",{src:S.P[S.me].avatarUrl,alt:""}))}
   who.prepend(themeSwitch());
   if(!S.preview)who.append(h("button",{class:"btn sm hbtn",onclick:testSignOut},"Sign out"));
   const tabs=document.getElementById("tabs");tabs.replaceChildren();
   const list=[["month","Month ledger"]];
   if(isMember())list.push(["my","My day"]);
-  if(S.isAdmin){list.push(["plan","Plan tasks"]);list.push(["review","Review",reviewQueue().length]);list.push(["hl","Holidays & leave"]);list.push(["team","Team",Object.keys(S.requests).filter(id=>!S.members[id]||S.members[id].status!=="active").length])}
+  if(canManage()){list.push(["plan","Plan tasks"]);list.push(["review","Review",reviewQueue().length])}
+  if(S.isAdmin){list.push(["hl","Holidays & leave"]);list.push(["team","Team",Object.keys(S.requests).filter(id=>!S.members[id]||S.members[id].status!=="active").length])}
   if(!list.some(t=>t[0]===S.view))S.view="month";
   for(const[k,label,badge]of list)tabs.append(h("button",{"aria-current":String(S.view===k),onclick:()=>{S.view=k;S.drawer=null;render()}},label,badge?h("span",{class:"badge",text:badge}):null));
 }
@@ -689,7 +700,7 @@ function joinCard(){
 
 /* month ledger */
 function monthView(){
-  const ym=S.month,n=daysIn(ym),ids=activeIds().sort((a,b)=>nm(a).localeCompare(nm(b)));
+  const ym=S.month,n=daysIn(ym),ids=visibleIds().sort((a,b)=>nm(a).localeCompare(nm(b)));
   const bar=h("div",{class:"bar"},
     h("button",{class:"btn icon-btn","aria-label":"Previous month",onclick:()=>{S.month=shiftMonth(ym,-1);syncSubs();render()}},"‹"),
     h("h2",{text:monthName(ym)}),
@@ -697,8 +708,8 @@ function monthView(){
     ym!==ymOf(new Date())?h("button",{class:"btn ghost sm",onclick:()=>{S.month=ymOf(new Date());syncSubs();render()}},"This month"):null,
     h("span",{class:"grow"}),
     isMember()?h("button",{class:"btn primary",onclick:()=>{S.view="my";render()}},"Log today"):null,
-    S.isAdmin?h("button",{class:"btn",onclick:()=>{S.view="plan";render()}},"Plan tasks"):null,
-    S.isAdmin&&ids.length?h("button",{class:"btn",onclick:()=>setPreview(ids[0])},"View as team member"):null);
+    canManage()?h("button",{class:"btn",onclick:()=>{S.view="plan";render()}},"Plan tasks"):null,
+    S.isAdmin&&ids.length?h("button",{class:"btn",onclick:()=>setPreview(ids[0])},"View as someone else"):null);
   if(!S.membersLoaded)return[bar,h("div",{class:"panel empty"},h("p",{class:"muted",text:"Loading the team…"}))];
   if(!ids.length)return[bar,h("div",{class:"panel empty"},h("h3",{text:"No one on the team yet"}),
     h("p",{class:"muted"},S.isAdmin?"Share this page with your team (Share menu, invite by email). When they open it and request access, approve them in the Team tab and their row appears here.":"Your admin hasn't added anyone yet."),
@@ -711,7 +722,7 @@ function monthView(){
   const body=h("tbody");
   for(const uid of ids){
     const st=monthStats(uid,ym);
-    const tr=h("tr",null,h("th",{class:"name",scope:"row"},h("div",{class:"nwrap"},avatar(uid),h("span",{class:"nm"},h("span",{class:"n",text:nm(uid)+(uid===S.me?" (you)":"")}),h("span",{class:"t",text:(S.members[uid].title||"")+(S.members[uid].demo?" · sample":"")}),h("span",{class:"t wd",text:wdLabel(uid)})))));
+    const tr=h("tr",null,h("th",{class:"name",scope:"row"},h("div",{class:"nwrap"},avatar(uid),h("span",{class:"nm"},h("span",{class:"n",text:nm(uid)+(uid===S.me?" (you)":"")}),h("span",{class:"t",text:(S.members[uid].title||"")+(S.members[uid].role==="pm"?" · PM":"")}),h("span",{class:"t wd",text:wdLabel(uid)})))));
     for(let d=1;d<=n;d++)tr.append(h("td",null,cellBtn(uid,ym,d)));
     tr.append(h("td",{class:"sum total"},st.total),h("td",{class:"sum"},st.avg.toFixed(1)),h("td",{class:"sum lv"},st.leaves?(st.paid+"/"+st.unpaid):"–"),h("td",{class:"sum star"},st.extra||"–"));
     body.append(tr)}
@@ -737,7 +748,7 @@ function monthView(){
     kpi("gold","★ "+sum("extra"),"Extraordinary days","scored 6–10"),
     kpi("violet",sum("leaves"),"Leave days",sum("paid")+" paid · "+sum("unpaid")+" unpaid"),
     kpi("pink",sum("bonus"),"Holiday / off-day work","extra points days"),
-    kpi("sky",sum("pend"),"Awaiting review",S.isAdmin&&sum("pend")?"tap to review":"",S.isAdmin&&sum("pend")?()=>{S.view="review";render()}:null),
+    kpi("sky",sum("pend"),"Awaiting review",canManage()&&reviewQueue().length?"tap to review":"",canManage()&&reviewQueue().length?()=>{S.view="review";render()}:null),
     kpi("coral",sum("miss"),"Days not filled","past working days"));
   const maxPts=Math.max(1,...stats.map(x=>x.total));
   const leaders=h("div",{class:"leaders"});
@@ -779,25 +790,26 @@ function renderDrawer(){
   if(plan.length)kids.push(h("div",{class:"field"},h("span",{class:"eyebrow",text:"Assigned tasks"}),statusList(plan,i.e?.checks,{uid,key:ym+"-"+pad(d)})));
   if(i.e){kids.push(i.e.done?h("div",{class:"field"},h("span",{class:"eyebrow",text:plan.length?"Overall notes":"Daily update"}),h("p",{style:"white-space:pre-wrap;margin:0",text:i.e.done})):null,
     i.e.tasks?h("div",{class:"field"},h("span",{class:"eyebrow",text:"Other work"}),h("p",{style:"white-space:pre-wrap;margin:0",text:i.e.tasks})):null)}
-  if(i.sc?.reason&&(i.sc.approved||S.isAdmin))kids.push(h("div",{class:"note"},h("b",null,i.sc.approved?"Scoring note: ":"Claude's suggestion ("+i.sc.ai+"): "),i.sc.reason));
-  if(S.isAdmin){
+  if(i.sc?.reason&&(i.sc.approved||manages(uid)))kids.push(h("div",{class:"note"},h("b",null,i.sc.approved?"Scoring note: ":"Claude's suggestion ("+i.sc.ai+"): "),i.sc.reason));
+  if(manages(uid)){
     const inp=h("input",{type:"number",min:"0",max:"10",step:"1",id:"drawer-score",value:i.score??i.sc?.ai??""});
     const reason=h("input",{type:"text",id:"drawer-note",placeholder:"Note for the team (optional)",value:i.sc?.approved?i.sc.reason||"":""});
-    kids.push(h("div",{class:"panel stack",style:"padding:16px"},h("div",{class:"eyebrow",text:"Admin · set score"}),
+    kids.push(h("div",{class:"panel stack",style:"padding:16px"},h("div",{class:"eyebrow",text:(S.isAdmin?"Admin":"Project manager")+" · set score"}),
       h("div",{class:"score-in"},inp,h("span",{class:"muted small",text:"0–10"})),reason,
       h("div",{class:"bar"},
         h("button",{class:"btn primary",onclick:async()=>{const v=clamp(inp.value);if(v==null)return toast("Enter a score from 0 to 10");
           await saveScore(uid,ym,d,{final:v,reason:reason.value.trim()||i.sc?.reason||"",kind:"scored"});toast("Score saved");close()}},"Save score"),
         i.bonus||i.offday?h("span",{class:"chip pink",text:"Off-day work: award extra points"}):null)));
+    if(S.isAdmin){
     const lr=h("input",{type:"text",id:"drawer-lreason",placeholder:"Leave reason",value:i.lv?.reason||""});
     const leaveBox=h("div",{class:"panel stack",style:"padding:16px"},h("div",{class:"eyebrow",text:"Admin · leave for this day"}),
       i.lv?h("div",{class:"notice l",text:(i.ltype==="unpaid"?"Unpaid":"Paid")+" leave"+(i.lv.reason?": "+i.lv.reason:"")}):lr,
       h("div",{class:"bar"},i.lv?h("button",{class:"btn",onclick:async()=>{await writeDays("leaves/"+uid+"/months/"+ym,{[pad(d)]:null});toast("Leave removed");close()}},"Remove leave"):[
         h("button",{class:"btn",onclick:async()=>{await setLeave(uid,[ym+"-"+pad(d)],"paid",lr.value.trim());close()}},"Paid leave"),
         h("button",{class:"btn",onclick:async()=>{await setLeave(uid,[ym+"-"+pad(d)],"unpaid",lr.value.trim());close()}},"Unpaid leave")]));
-    kids.push(leaveBox);
+    kids.push(leaveBox);}
     if(i.key<todayKey()&&!i.lv){const un=unlocked(uid,ym,d);
-      kids.push(h("div",{class:"panel stack",style:"padding:16px"},h("div",{class:"eyebrow",text:"Admin · late entry"}),
+      kids.push(h("div",{class:"panel stack",style:"padding:16px"},h("div",{class:"eyebrow",text:(S.isAdmin?"Admin":"Project manager")+" · late entry"}),
         h("p",{class:"small muted",style:"margin:0",text:un?"Unlocked: "+nm(uid)+" can fill or edit this day.":"Past days are locked for the team. Unlock to let "+nm(uid)+" submit a late update."}),
         h("div",null,h("button",{class:"btn",onclick:async()=>{await writeDays("plans/"+uid+"/months/"+ym,{[pad(d)]:{...(S.plans[uid+"|"+ym]?.days?.[pad(d)]||{}),unlocked:!un}});toast(un?"Locked again":"Unlocked for "+nm(uid));close()}},un?"Lock again":"Unlock this day"))))}
   }
@@ -890,7 +902,7 @@ function renderMyHistory(){
 /* review */
 function reviewQueue(){
   const out=[];const ym=S.month,n=daysIn(ym);
-  for(const uid of activeIds())for(let d=1;d<=n;d++){const i=dayInfo(uid,ym,d);if(i.kind==="pend")out.push({uid,ym,d,i,id:uid+"|"+ym+"|"+pad(d)})}
+  for(const uid of managedIds())for(let d=1;d<=n;d++){const i=dayInfo(uid,ym,d);if(i.kind==="pend")out.push({uid,ym,d,i,id:uid+"|"+ym+"|"+pad(d)})}
   return out.sort((a,b)=>b.d-a.d);
 }
 function reviewView(){
@@ -950,7 +962,7 @@ async function runAI(items){
 
 function statusList(plan,checks,ctx){const ul=h("ul",{class:"status-list"});
   for(const t of plan){const v=taskVal(checks?.[t.k]);const tag=srcTag(t);const fk=ctx?ctx.uid+"|"+ctx.key+"|"+t.k:"";
-    const canAct=S.isAdmin&&ctx&&t.src!=="routine";
+    const canAct=ctx&&manages(ctx.uid)&&t.src!=="routine";
     ul.append(h("li",null,h("span",{class:"chip "+sClass(v?.s),style:"min-width:44px;text-align:center",text:v?.s!=null?v.s+"/5":"–/5"}),
       h("span",null,t.src==="carried"||t.src==="redo"?h("span",{class:"tag "+tag[0],text:t.src==="carried"?"Carried · ":"Redo · "}):null,t.text),
       canAct?h("span",{class:"acts"},h("button",{class:"btn sm",onclick:()=>{S.redoOpen=S.redoOpen===fk?null:fk;render()}},"Redo")):null,
@@ -990,7 +1002,7 @@ function planView(){
   let key=S.planDate||todayKey();
   if(new Date(key+"T00:00:00").getDay()===0)key=nextWorkday(key);
   const ym=key.slice(0,7);if(ym!==S.month){S.month=ym;syncSubs()}
-  const ids=activeIds().sort((a,b)=>nm(a).localeCompare(nm(b)));
+  const ids=managedIds().sort((a,b)=>nm(a).localeCompare(nm(b)));
   const dateIn=h("input",{type:"date",id:"plan-date",value:key,onchange:e=>{if(!e.target.value)return;S.planDate=e.target.value;render()}});
   const head=h("div",{class:"bar"},
     h("div",null,h("h2",{text:"Plan tasks"}),h("p",{class:"muted small",style:"margin:4px 0 0",text:"Assign each person's tasks for a day. Daily routine tasks are added to every working day automatically."})),
@@ -998,7 +1010,7 @@ function planView(){
     h("button",{class:"btn icon-btn","aria-label":"Previous working day",onclick:()=>{S.planDate=prevWorkday(key);render()}},"‹"),
     h("div",{style:"width:170px"},dateIn),
     h("button",{class:"btn icon-btn","aria-label":"Next working day",onclick:()=>{S.planDate=nextWorkday(key);render()}},"›"));
-  if(!ids.length)return[head,h("div",{class:"panel empty"},h("h3",{text:"No team members yet"}),h("p",{class:"muted",text:"Approve people in the Team tab first, then plan their tasks here."}))];
+  if(!ids.length)return[head,h("div",{class:"panel empty"},h("h3",{text:"No team members yet"}),h("p",{class:"muted",text:S.isAdmin?"Add people in the Team tab first, then plan their tasks here.":"No team members are assigned to you yet. Ask your admin to assign them."}))];
   const week=h("input",{type:"checkbox",id:"plan-week",checked:S.planWeek||null,onchange:e=>S.planWeek=e.target.checked});
   const grid=h("div",{class:"plan-grid"});
   const cards=[];
@@ -1015,8 +1027,8 @@ function planView(){
       !isWorkDay(uid,key)?h("div",{class:"notice "+(leaveOn(uid,ym,Number(key.slice(8)))?"l":holidayOn(uid,ym,Number(key.slice(8)))?"h":"d"),text:(leaveOn(uid,ym,Number(key.slice(8)))?"On leave":holidayOn(uid,ym,Number(key.slice(8)))?"Holiday":"Weekly off")+" this day. Tasks you add here won't appear for "+nm(uid)+"."}):null,
       autoList(uid,key),
       h("div",{class:"field"},h("label",{for:"plan-"+uid,text:"New tasks for "+fmtDay(ym,Number(key.slice(8)))}),ta),
-      h("details",null,h("summary",{class:"small muted",style:"cursor:pointer"},"Working days & daily routine"),
-        h("div",{class:"field",style:"margin-top:8px"},h("span",{class:"small",text:"Works on"}),dayToggles(S.wdDrafts[uid]=S.wdDrafts[uid]||[...workdays(uid)],()=>render())),
+      h("details",null,h("summary",{class:"small muted",style:"cursor:pointer"},S.isAdmin?"Working days & daily routine":"Daily routine"),
+        S.isAdmin?h("div",{class:"field",style:"margin-top:8px"},h("span",{class:"small",text:"Works on"}),dayToggles(S.wdDrafts[uid]=S.wdDrafts[uid]||[...workdays(uid)],()=>render())):null,
         h("div",{class:"field",style:"margin-top:8px"},h("label",{for:"routine-"+uid,class:"small",text:"Daily routine · repeats every working day"}),rt))));
   }
   const copyBtn=h("button",{class:"btn",onclick:()=>{const pk=prevWorkday(key);let n=0;for(const c of cards){const t=planText(c.uid,pk);if(t&&!(S.planDrafts[c.dk]??planText(c.uid,key))){S.planDrafts[c.dk]=t;n++}}toast(n?"Copied "+n+" plan"+(n===1?"":"s")+" from "+pk:"Nothing to copy from the previous working day");render()}},"Copy previous day");
@@ -1052,25 +1064,33 @@ function teamView(){
   const mp=h("div",{class:"panel stack"},h("div",{class:"eyebrow",text:"Members · "+mem.length}));
   const pl=h("div",{class:"cols2"});
   for(const id of mem.sort((a,b)=>nm(a).localeCompare(nm(b)))){
-    const dr=S.memDrafts[id]=S.memDrafts[id]||{title:S.members[id].title||"",days:[...workdays(id)],email:S.emails.emails?.[id]||""};
+    const dr=S.memDrafts[id]=S.memDrafts[id]||{title:S.members[id].title||"",days:[...workdays(id)],email:S.emails.emails?.[id]||"",role:S.members[id].role==="pm"?"pm":"member",pm:S.members[id].pm||""};
+    const pms=mem.filter(x=>x!==id&&S.members[x].role==="pm");
+    const roleSeg=h("div",{class:"seg sm",role:"group","aria-label":"Role"},h("button",{"aria-pressed":String(dr.role==="member"),onclick:()=>{dr.role="member";render()}},"Team member"),h("button",{"aria-pressed":String(dr.role==="pm"),onclick:()=>{dr.role="pm";dr.pm="";render()}},"Project manager"));
+    const pmSel=h("select",{id:"pm-"+id,onchange:e=>{dr.pm=e.target.value}},h("option",{value:"",selected:!dr.pm||null},"Admin (no project manager)"),...pms.map(x=>h("option",{value:x,selected:dr.pm===x||null},nm(x))));
+    const team=mem.filter(x=>S.members[x].pm===id);
     const title=h("input",{type:"text",id:"title-"+id,value:dr.title,"aria-label":"Role",oninput:e=>dr.title=e.target.value});
     const email=h("input",{type:"text",id:"email-"+id,value:dr.email,placeholder:"name@icsoln.com","aria-label":"Email for notices",oninput:e=>dr.email=e.target.value});
     pl.append(h("div",{class:"member-edit"},
       h("div",{class:"row"},avatar(id),h("b",{class:"grow",text:nm(id)}),S.members[id].demo?h("span",{class:"chip",text:"sample"}):null),
-      h("div",{class:"row"},h("label",{for:"title-"+id,text:"Role"}),h("div",{class:"grow"},title)),
+      h("div",{class:"row"},h("label",{for:"title-"+id,text:"Job title"}),h("div",{class:"grow"},title)),
+      h("div",{class:"row"},h("label",{text:"Role"}),roleSeg),
+      dr.role==="member"?h("div",{class:"row"},h("label",{for:"pm-"+id,text:"Reports to"}),h("div",{class:"grow"},pmSel)):
+        h("div",{class:"row"},h("label",{text:"Manages"}),h("span",{class:"small muted",text:team.length?team.map(nm).join(", "):"No one yet. Pick this person as \"Reports to\" on a team member."})),
       h("div",{class:"row"},h("label",{text:"Works on"}),dayToggles(dr.days,()=>render())),
       h("div",{class:"row"},h("label",{for:"email-"+id,text:"Email"}),h("div",{class:"grow"},email)),
       h("p",{class:"small muted",style:"margin:0",text:"Email is only visible to you; it's used for holiday and leave notices."}),
       h("div",{class:"row"},h("button",{class:"btn primary sm",onclick:async()=>{
           if(!dr.days.length)return toast("Pick at least one working day");
-          await S.db.doc("members/"+id).update({title:dr.title.trim().slice(0,60),workdays:[...dr.days].sort()});
+          await S.db.doc("members/"+id).update({title:dr.title.trim().slice(0,60),workdays:[...dr.days].sort(),role:dr.role,pm:dr.role==="pm"?"":dr.pm});
+          if(dr.role!=="pm")for(const x of mem)if(S.members[x].pm===id)await S.db.doc("members/"+x).update({pm:""});
           const em=dr.email.trim().toLowerCase();if(em!==(S.emails.emails?.[id]||"")){const ref=S.db.doc("private/emails");const cur=await ref.get();const data=cur.exists?cur.data():{emails:{}};data.emails={...(data.emails||{}),[id]:em};await ref.set(data)}
           delete S.memDrafts[id];toast("Saved "+nm(id))}},"Save"),
         h("button",{class:"btn ghost sm",onclick:e=>{if(e.target.dataset.armed){S.db.doc("members/"+id).update({status:"removed"}).then(()=>toast(nm(id)+" removed"));}else{e.target.dataset.armed="1";e.target.textContent="Confirm remove";setTimeout(()=>{e.target.textContent="Remove";delete e.target.dataset.armed},4000)}}},"Remove"))))}
   if(!mem.length)pl.append(h("p",{class:"muted",style:"margin:0",text:"No members yet."}));
   mp.append(pl);out.push(mp);
   out.push(h("div",{class:"panel stack"},h("div",{class:"eyebrow",text:"How scoring works"}),rubricBlock(),
-    h("p",{class:"muted small",style:"margin:0",text:"Everyone on the team sees each other's names, scores and work logs. Email addresses are only visible to you."})));
+    h("p",{class:"muted small",style:"margin:0",text:"Team members see only their own data. Project managers see their own and their team's. Admins see everyone. Email addresses are only visible to admins."})));
   return out;
 }
 async function setLeave(uid,keys,type,reason){
@@ -1090,7 +1110,7 @@ function myNotices(){
 }
 function dailyReport(){
   const y=keyAdd(todayKey(),-1),ym=y.slice(0,7),d=Number(y.slice(8));
-  const ids=activeIds().sort((a,b)=>nm(a).localeCompare(nm(b)));
+  const ids=managedIds().sort((a,b)=>nm(a).localeCompare(nm(b)));
   const rows=ids.map(uid=>({uid,i:dayInfo(uid,ym,d)}));
   const box=h("div",{class:"panel stack"},h("div",{class:"bar"},h("div",null,h("div",{class:"eyebrow",text:"Yesterday's report"}),h("h3",{style:"font-size:19px;margin-top:4px",text:fmtKey(y)})),h("span",{class:"grow"}),
     h("button",{class:"btn sm",onclick:async()=>{const txt=reportText(y,rows);try{await navigator.clipboard.writeText(txt);toast("Report copied")}catch{toast("Copy blocked here; select the text in the report instead")}}},"Copy as email")));
