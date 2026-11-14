@@ -555,7 +555,8 @@ function isPM(){return!S.isAdmin&&S.members[S.me]?.role==="pm"}
 function canManage(){return S.isAdmin||isPM()}
 function manages(uid){return S.isAdmin?true:isPM()&&uid!==S.me&&S.members[uid]?.pm===S.me}
 function managedIds(){return S.isAdmin?activeIds():isPM()?activeIds().filter(id=>manages(id)):[]}
-function visibleIds(){if(S.isAdmin)return activeIds();const v=new Set([S.me,...managedIds()]);return activeIds().filter(id=>v.has(id))}
+function visibleIds(){return activeIds()}  // everyone's scores are visible to the whole team
+function canSeeDetails(uid){return S.isAdmin||uid===S.me||manages(uid)}  // tasks, updates and comments: self, their PM, admin
 function roleLabel(uid){return S.members[uid]?.role==="pm"?"Project manager":"Team member"}
 
 function syncSubs(){
@@ -786,11 +787,13 @@ function renderDrawer(){
     h("div",{class:"bar",style:"gap:12px"},avatar(uid),h("div",null,h("div",{class:"eyebrow",text:fmtDay(ym,d)}),h("h2",{style:"font-size:22px;margin-top:4px",text:nm(uid)})))];
   const tag={sun:"Sunday — off",leave:"On leave",miss:"Not filled",pend:"Awaiting review",scored:i.auto?"No work given (auto 2)":"Scored",off:"Company holiday"}[i.kind]||"";
   kids.push(h("div",{class:"bar"},dayChip(i),h("span",{class:"grow"}),i.score!=null?h("div",{class:"scorebig"},i.score,h("small",{text:"points"})):null));
-  const plan=planFor(uid,ym,d);
+  const det=canSeeDetails(uid);
+  const plan=det?planFor(uid,ym,d):[];
+  if(!det)kids.push(h("p",{class:"small muted",style:"margin:0",text:"Tasks and comments are visible only to "+nm(uid)+", their project manager and the admin."}));
   if(plan.length)kids.push(h("div",{class:"field"},h("span",{class:"eyebrow",text:"Assigned tasks"}),statusList(plan,i.e?.checks,{uid,key:ym+"-"+pad(d)})));
-  if(i.e){kids.push(i.e.done?h("div",{class:"field"},h("span",{class:"eyebrow",text:plan.length?"Overall notes":"Daily update"}),h("p",{style:"white-space:pre-wrap;margin:0",text:i.e.done})):null,
+  if(i.e&&det){kids.push(i.e.done?h("div",{class:"field"},h("span",{class:"eyebrow",text:plan.length?"Overall notes":"Daily update"}),h("p",{style:"white-space:pre-wrap;margin:0",text:i.e.done})):null,
     i.e.tasks?h("div",{class:"field"},h("span",{class:"eyebrow",text:"Other work"}),h("p",{style:"white-space:pre-wrap;margin:0",text:i.e.tasks})):null)}
-  if(i.sc?.reason&&(i.sc.approved||manages(uid)))kids.push(h("div",{class:"note"},h("b",null,i.sc.approved?"Scoring note: ":"Claude's suggestion ("+i.sc.ai+"): "),i.sc.reason));
+  if(det&&i.sc?.reason&&(i.sc.approved||manages(uid)))kids.push(h("div",{class:"note"},h("b",null,i.sc.approved?"Scoring note: ":"Claude's suggestion ("+i.sc.ai+"): "),i.sc.reason));
   if(manages(uid)){
     const inp=h("input",{type:"number",min:"0",max:"10",step:"1",id:"drawer-score",value:i.score??i.sc?.ai??""});
     const reason=h("input",{type:"text",id:"drawer-note",placeholder:"Note for the team (optional)",value:i.sc?.approved?i.sc.reason||"":""});
@@ -1090,7 +1093,7 @@ function teamView(){
   if(!mem.length)pl.append(h("p",{class:"muted",style:"margin:0",text:"No members yet."}));
   mp.append(pl);out.push(mp);
   out.push(h("div",{class:"panel stack"},h("div",{class:"eyebrow",text:"How scoring works"}),rubricBlock(),
-    h("p",{class:"muted small",style:"margin:0",text:"Team members see only their own data. Project managers see their own and their team's. Admins see everyone. Email addresses are only visible to admins."})));
+    h("p",{class:"muted small",style:"margin:0",text:"Everyone sees the team's scores. Tasks, updates and comments are visible only to the person, their project manager and the admin. Email addresses are only visible to admins."})));
   return out;
 }
 async function setLeave(uid,keys,type,reason){

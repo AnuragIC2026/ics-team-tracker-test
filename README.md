@@ -7,8 +7,8 @@ The production app (Node + MySQL, server-checked login and roles, email OTP, not
 
 **Roles**
 - **Admin** sees and manages everyone, and sets each person's role and project manager in the Team tab.
-- **Project manager** sees their own data plus their assigned team members, and plans, reviews, redoes and unlocks for them.
-- **Team member** sees only their own data.
+- **Project manager** sees everyone's scores, plus full task details for their assigned team members, and plans, reviews, redoes and unlocks for them.
+- **Team member** sees everyone's scores, but only their own tasks, updates and comments.
 
 **Sign-in (temporary passwords)**
 - Admin: anurag.p@icsoln.com / Anurag123
