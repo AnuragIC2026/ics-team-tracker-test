@@ -413,6 +413,48 @@ input,select,textarea{max-width:100%}
   .brand .sub{display:none}
   .theme-sw button{padding:4px 8px}
 }
+
+/* ===== task priority, collapsible task cards ===== */
+.prio{display:inline-block;font:600 10.5px/1.5 var(--f-body);letter-spacing:.04em;text-transform:uppercase;padding:1px 7px;border-radius:6px;white-space:nowrap;vertical-align:1px}
+.prio.crit{background:var(--coral-ink);color:var(--surface)}
+.prio.urg{background:var(--coral-bg);color:var(--coral-ink);box-shadow:inset 0 0 0 1px var(--coral-ink)}
+.prio.high{background:var(--gold-bg);color:var(--gold-ink)}
+.prio.low{background:var(--sunk);color:var(--muted)}
+.prio-pick{display:inline-flex;gap:3px;flex:none}
+.prio-pick button{font:600 11.5px/1 var(--f-body);padding:6px 9px;border-radius:7px;border:1px solid var(--line);background:var(--bg);color:var(--muted);cursor:pointer}
+.prio-pick button.urg[aria-pressed="true"]{background:var(--coral-ink);border-color:var(--coral-ink);color:var(--surface)}
+.prio-pick button.high[aria-pressed="true"]{background:var(--gold-ink);border-color:var(--gold-ink);color:var(--surface)}
+.prio-pick button.low[aria-pressed="true"]{background:var(--muted);border-color:var(--muted);color:var(--surface)}
+.tl-head{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.tlist{list-style:none;margin:0;padding:0;display:grid;gap:6px}
+.tcard{border:1px solid var(--line);border-radius:10px;background:var(--surface)}
+.tcard.back{background:var(--bg)}
+.tcard.need{border-color:var(--coral-ink);box-shadow:0 0 0 2px var(--coral-bg)}
+.tcard>summary{list-style:none;display:flex;align-items:center;gap:10px;padding:10px 12px;cursor:pointer;min-height:44px}
+.tcard>summary::-webkit-details-marker{display:none}
+.tcard .tsum{flex:1;min-width:0;display:flex;flex-wrap:wrap;align-items:center;gap:4px 8px}
+.tcard .ttx{font-size:14.5px;line-height:1.35;overflow-wrap:anywhere}
+.tcard .src{font-size:11px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--violet-ink);flex-basis:100%}
+.tcard .src.c{color:var(--gold-ink)}.tcard .src.r{color:var(--coral-ink)}.tcard .src.s{color:var(--sky-ink)}.tcard .src.a{display:none}
+.tcard .chip{flex:none}
+.tcard .chev{flex:none;width:8px;height:8px;border-right:2px solid var(--muted);border-bottom:2px solid var(--muted);transform:rotate(45deg);margin:0 4px 4px 0;transition:transform .15s}
+.tcard[open] .chev{transform:rotate(-135deg);margin:4px 4px 0 0}
+.tcard .tbody{display:grid;gap:10px;padding:0 12px 12px}
+.tcard .tbody textarea{width:100%;min-height:56px;font-size:14px}
+.addtask{display:flex;gap:6px;flex-wrap:wrap;align-items:center;padding:8px;border:1px dashed var(--line);border-radius:10px}
+.addtask input{flex:1 1 200px;min-width:0}
+.tedit{display:grid;gap:6px}
+.trow{display:grid;grid-template-columns:minmax(0,1fr) auto auto;gap:6px;align-items:center}
+.trow input{min-width:0;padding:8px 10px;font-size:14px}
+.trow .del{font-size:18px;line-height:1;padding:4px 10px}
+.trow.new input{border-style:dashed}
+.status-list .prio{margin-right:2px}
+@media (max-width:640px){
+  .trow{grid-template-columns:1fr auto}
+  .trow input{grid-column:1/-1}
+  .tcard>summary{gap:8px;padding:10px}
+  .addtask input{flex-basis:100%}
+}
 .site-foot{margin:8px 0 0;text-align:center;font-size:12px;color:var(--muted)}
 </style>
 
@@ -474,7 +516,8 @@ function fmtKey(k){return new Date(k+"T00:00:00").toLocaleDateString("en-IN",{we
 function dayToggles(arr,onchange){const box=h("div",{class:"days",role:"group","aria-label":"Working days"});
   [1,2,3,4,5,6,0].forEach(n=>box.append(h("button",{type:"button","aria-pressed":String(arr.includes(n)),onclick:()=>{const i=arr.indexOf(n);if(i>=0)arr.splice(i,1);else arr.push(n);onchange(arr)}},WD[n])));return box}
 const CHECK={done:"Done",partial:"Partly",no:"Not done"};
-function taskVal(v){if(v==null)return null;if(typeof v==="string")return{s:{done:5,partial:3,no:0}[v]??null,c:""};return{s:typeof v.s==="number"?v.s:null,c:v.c||""}}
+function taskVal(v){if(v==null)return null;if(typeof v==="string")return{s:{done:5,partial:3,no:0}[v]??null,c:"",st:""};return{s:typeof v.s==="number"?v.s:null,c:v.c||"",st:v.st||""}}
+function checkPill(t,v){if(t.src==="carried"||v?.st)return v?.st==="done"?["ok","Done"]:v?.st==="progress"?["sky","In progress"]:v?.s!=null?[sClass(v.s),v.s+"/5"]:["","Pending"];return v?.s!=null?[sClass(v.s),v.s+"/5"]:["","–/5"]}
 function sClass(n){return n==null?"":n>=5?"ok":n>=3?"warn":"coral"}
 function tkey(t){let x=5381;for(const c of t)x=((x<<5)+x+c.charCodeAt(0))>>>0;return"t"+x.toString(36)}
 function lines(t){return String(t||"").split("\n").map(l=>l.replace(/^[\s\-*•\d.)]+/,"").trim()).filter(Boolean)}
@@ -487,18 +530,33 @@ function redoDefault(uid,fromKey){const t=todayKey();if(fromKey<t&&isWorkDay(uid
 /* Task list for a person on a day: daily routine, admin redo requests, unfinished tasks carried from the previous working day, then that day's assigned tasks.
    A task carries forward until the employee scores it 5/5 or the admin removes it. */
 const CARRY_DEPTH=20;
+/* Task priority. Urgent + High priority together = Critical. Order: Critical, Urgent, High, normal, Low. */
+const PRIO={uh:{label:"Critical",cls:"crit",rank:0},u:{label:"Urgent",cls:"urg",rank:1},h:{label:"High priority",cls:"high",rank:2},"":{label:"",cls:"",rank:3},l:{label:"Low priority",cls:"low",rank:4}};
+function prioCode(p){return PRIO[p]?p:""}
+function prioRank(p){return PRIO[prioCode(p)].rank}
+function prioBadge(p){p=prioCode(p);return p?h("span",{class:"prio "+PRIO[p].cls,text:PRIO[p].label}):null}
+function prioPicker(p,onchange,label){p=prioCode(p);const u=p==="u"||p==="uh",hi=p==="h"||p==="uh",lo=p==="l";
+  const set=(nu,nh,nl)=>onchange(nl?"l":nu&&nh?"uh":nu?"u":nh?"h":"");
+  return h("div",{class:"prio-pick",role:"group","aria-label":label||"Priority"},
+    h("button",{type:"button",class:"urg","aria-pressed":String(u),title:"Urgent (with High = Critical)",onclick:()=>set(!u,hi,false)},"Urgent"),
+    h("button",{type:"button",class:"high","aria-pressed":String(hi),title:"High priority",onclick:()=>set(u,!hi,false)},"High"),
+    h("button",{type:"button",class:"low","aria-pressed":String(lo),title:"Low priority",onclick:()=>set(false,false,!lo)},"Low"))}
+function savedTasks(uid,key){const P=planDoc(uid,key)||{};return lines(P.tasks).map(t=>({t,p:prioCode(P.prio?.[tkey(t)])}))}
+function blurNow(){try{document.activeElement?.blur?.()}catch{}}
+function refocus(id){setTimeout(()=>{const el=document.getElementById(id);if(el)el.focus()},80)}
 function planFor(uid,ym,d,depth=0){
   if(isOff(uid,ym,d)||holidayOn(uid,ym,d)||fullLeaveOn(uid,ym,d))return[];
   const key=ym+"-"+pad(d),P=planDoc(uid,key)||{},drop=new Set(P.drop||[]);
   const out=[],seen=new Set();
-  const add=(t,src,x={})=>{const k=tkey(t);if(seen.has(k)||(src==="carried"&&drop.has(k)))return;seen.add(k);out.push({k,text:t,src,...x})};
+  const add=(t,src,x={})=>{const k=tkey(t);if(seen.has(k)||(src==="carried"&&drop.has(k)))return;seen.add(k);out.push({k,text:t,src,p:"",...x})};
   lines(S.members[uid]?.routine).forEach(t=>add(t,"routine"));
-  (P.redo||[]).forEach(r=>r&&r.t&&add(r.t,"redo",{from:r.from,note:r.note||"",fromUser:r.fromUser||""}));
+  (P.redo||[]).forEach(r=>r&&r.t&&add(r.t,"redo",{from:r.from,note:r.note||"",fromUser:r.fromUser||"",p:prioCode(r.p)}));
   if(depth<CARRY_DEPTH){const pk=prevPlanDay(uid,key);if(pk){const e=S.entries[uid+"|"+pk.slice(0,7)]?.days?.[pk.slice(8)];
-    for(const t of planFor(uid,pk.slice(0,7),Number(pk.slice(8)),depth+1)){if(t.src==="routine")continue;const v=taskVal(e?.checks?.[t.k]);if(v&&v.s!=null&&v.s>=taskMax(uid,pk.slice(0,7),Number(pk.slice(8))))continue;add(t.text,"carried",{from:t.from||pk,note:t.note||""})}}}
-  lines(P.tasks).forEach(t=>add(t,"assigned"));
-  return out}
-function srcTag(t){return t.src==="routine"?["","Daily routine"]:t.src==="carried"?["c","Carried over · pending since "+fmtKey(t.from)]:t.src==="redo"?["r",(t.fromUser?"Reassigned from "+nm(t.fromUser)+" · "+fmtKey(t.from):"Redo · reposted from "+fmtKey(t.from))+(t.note?" · "+t.note:"")]:["a","Assigned"]}
+    for(const t of planFor(uid,pk.slice(0,7),Number(pk.slice(8)),depth+1)){if(t.src==="routine")continue;const v=taskVal(e?.checks?.[t.k]);if(v&&v.s!=null&&v.s>=taskMax(uid,pk.slice(0,7),Number(pk.slice(8))))continue;add(t.text,"carried",{from:t.from||pk,note:t.note||"",p:t.p})}}}
+  lines(P.tasks).forEach(t=>add(t,"assigned",{p:prioCode(P.prio?.[tkey(t)])}));
+  (P.mine||[]).forEach(x=>x&&x.t&&add(x.t,"self",{p:prioCode(x.p)}));
+  return out.sort((a,b)=>prioRank(a.p)-prioRank(b.p))}
+function srcTag(t){return t.src==="routine"?["","Daily routine"]:t.src==="self"?["s","Self-added"]:t.src==="carried"?["c","Backlog · pending since "+fmtKey(t.from)]:t.src==="redo"?["r",(t.fromUser?"Reassigned from "+nm(t.fromUser)+" · "+fmtKey(t.from):"Redo · reposted from "+fmtKey(t.from))+(t.note?" · "+t.note:"")]:["a","Assigned"]}
 
 
 function pad(n){return String(n).padStart(2,"0")}
@@ -634,11 +692,12 @@ let rq=0;function schedule(){if(rq)return;rq=requestAnimationFrame(()=>{rq=0;ren
 
 /* ---- Demo mode: for visitors not signed in to claude.ai the shared database isn't available,
    so the page runs on sample data kept in this browser only. ---- */
-const DEMO_SEED={"plans/demo-praveen/months/2026-11":{"days":{"11":{"at":1794380000000,"by":"demo","tasks":"EPTECH homepage: remaining 2 feedback points\nCampusin: college detail gallery"},"02":{"at":1793539800000,"by":"demo","tasks":"EPTECH homepage: build hero section\nEPTECH homepage: services grid"},"03":{"at":1793626200000,"by":"demo","tasks":"EPTECH homepage: testimonials slider\nFix ASNFS contact form spam"},"04":{"at":1793712600000,"by":"demo","tasks":"EPTECH homepage: footer + mobile QA"},"07":{"at":1793971800000,"by":"demo","tasks":"Campusin: fix pagination\nCampusin: college detail page layout"},"09":{"at":1794144600000,"by":"demo","tasks":"EPTECH homepage: client feedback round 1 fixes\nCampusin: college detail gallery"}}},"plans/demo-priyanshi/months/2026-11":{"days":{"11":{"at":1794380000000,"by":"demo","tasks":"Campusin: 2 blog posts\nadvantAGE Seniors: monthly SEO report"},"02":{"at":1793539800000,"by":"demo","tasks":"advantAGE Seniors: fix 404s from SEO audit\nWrite 2 blog posts for Campusin"},"03":{"at":1793626200000,"by":"demo","tasks":"advantAGE Seniors: meta titles for 40 pages"},"04":{"at":1793712600000,"by":"demo","tasks":"Campusin: keyword research for engineering pages"},"06":{"at":1793885400000,"by":"demo","tasks":"IC Solutions Instagram: 5 posts for next week"},"07":{"at":1793971800000,"by":"demo","tasks":"advantAGE Seniors: remaining 12 meta titles\nEPTECH: on-page SEO checklist"},"09":{"at":1794144600000,"by":"demo","tasks":"Campusin: 2 blog posts\nadvantAGE Seniors: monthly SEO report"}}},"scores/demo-praveen/months/2026-11":{"days":{"02":{"ai":5,"approved":true,"at":1793629800000,"by":"demo","final":5,"kind":"scored","reason":"All assigned items completed and verifiable on staging."},"03":{"ai":4,"approved":true,"at":1793716200000,"by":"demo","final":4,"kind":"scored","reason":"Slider done and spam fix verified; one routine item partly done."},"04":{"ai":7,"approved":true,"at":1793802600000,"by":"demo","final":7,"kind":"scored","reason":"Normal workload finished plus a late-night malware recovery that saved the client site. Extraordinary."},"07":{"ai":4,"aiAt":1794058260000,"approved":false,"reason":"Pagination fixed; detail page mostly done. Solid day with one item partly open."},"13":{"ai":3,"aiAt":1794590000000,"approved":false,"reason":"Partial leave day: a useful bug fix and client replies in about two hours. Good for a partial day."}}},"scores/demo-priyanshi/months/2026-11":{"days":{"02":{"ai":5,"approved":true,"at":1793629800000,"by":"demo","final":5,"kind":"scored","reason":"Clear output with counts and titles; all tasks complete."},"03":{"ai":3,"approved":true,"at":1793716200000,"by":"demo","final":3,"kind":"scored","reason":"Only 28 of 40 pages done; lighter day than planned."},"04":{"ai":5,"approved":true,"at":1793802600000,"by":"demo","final":5,"kind":"scored","reason":"Complete, specific deliverable."},"06":{"ai":5,"approved":true,"at":1793975400000,"by":"demo","final":5,"kind":"scored","reason":"All 5 posts done and scheduled."},"07":{"ai":5,"aiAt":1794058260000,"approved":false,"reason":"Assigned work complete plus a schema fix; a full, productive day."}}},"entries/demo-praveen/months/2026-11":{"days":{"02":{"at":1793626200000,"checks":{"t1bdr22s":"done","t1rat91n":"done","t1v4vhxk":"done","t631sb5":"done"},"done":"Hero section done with the new video background and CTA, pushed to staging (staging.ep-techsolutions.com). Services grid built for desktop; mobile breakpoints done too. Replied to 3 client tickets.","status":"worked","tasks":""},"03":{"at":1793712600000,"checks":{"t1bdr22s":"done","t1rat91n":"done","tnqbhw8":"done","txbq2al":"partial"},"done":"Testimonials slider done. ASNFS contact form: added honeypot + reCAPTCHA v3, spam stopped since 3pm. Tracker updated.","status":"worked","tasks":""},"04":{"at":1793799000000,"checks":{"t1bdr22s":"done","t1rat91n":"done","t3xfnz6":"done"},"done":"Footer done, full mobile QA on 6 devices, fixed 14 layout bugs. Also late evening ASNFS got hit by malware again: cleaned 212 infected files, restored from backup, changed all passwords, site back by 10:40pm.","status":"worked","tasks":"Emergency malware cleanup on asnfs.org"},"06":{"at":1793971800000,"checks":{},"done":"Campusin API credentials were blocked by client, waiting on them all day. Did internal code cleanup.","status":"nowork","tasks":""},"07":{"at":1794058200000,"checks":{"t1742420":"partial","t1bdr22s":"done","t1c2o5kg":"done","t1rat91n":"done"},"done":"Pagination fixed. College detail page layout 70% done, gallery section pending.","status":"worked","tasks":""},"09":{"at":1794229000000,"checks":{"t1bdr22s":"done","t1rat91n":"done","thoyz8a":"done"},"done":"EPTECH: done 9 of 11 feedback points, 2 need client content. Campusin gallery not started yet.","status":"worked","tasks":""},"13":{"at":1794580000000,"checks":{},"done":"On partial leave, worked about 2 hours: answered client emails and fixed the EPTECH mobile menu bug the client reported. Gallery still pending.","status":"worked","tasks":""}}},"entries/demo-priyanshi/months/2026-11":{"days":{"02":{"at":1793626200000,"checks":{"t1i98d52":"done","t1rat91n":"done","t35h08n":"done","tzle3ld":"done"},"done":"Fixed 37 broken links on advantageseniors.org with 301 redirects, resubmitted sitemap. Wrote 2 blogs (1,200 words each) for Campusin: 'Top MBA colleges in Assam' and 'NEET counselling guide', sent for review.","status":"worked","tasks":""},"03":{"at":1793712600000,"checks":{"t1rat91n":"done","t35h08n":"done","th066qs":"partial"},"done":"Rewrote meta titles + descriptions for 28 of 40 pages.","status":"worked","tasks":""},"04":{"at":1793799000000,"checks":{"t1rat91n":"done","t35h08n":"done","tcqvmyb":"done"},"done":"Keyword sheet done: 180 keywords grouped into 12 clusters with volume and difficulty. Shared on Drive.","status":"worked","tasks":""},"05":{"at":1793885400000,"checks":{},"done":"Family function","status":"leave","tasks":""},"06":{"at":1793971800000,"checks":{"t1io0mrl":"done","t1rat91n":"done","t35h08n":"done"},"done":"Designed and scheduled 5 posts on Meta Business Suite. Captions approved by Anurag.","status":"worked","tasks":""},"07":{"at":1794058200000,"checks":{"t129teao":"done","t1rat91n":"done","t1s711hi":"done","t35h08n":"done"},"done":"Finished remaining 12 meta titles. EPTECH SEO checklist done for homepage and 4 service pages. Also fixed schema markup errors that Search Console flagged.","status":"worked","tasks":""}}},"leaves/demo-praveen/months/2026-11":{"days":{"13":{"at":1794500000000,"by":"demo","reason":"Half day, personal work","type":"partial"}}},"leaves/demo-priyanshi/months/2026-11":{"days":{"05":{"at":1793800000000,"by":"demo","reason":"Family function","type":"paid"}}},"members/demo-priyanshi":{"demo":true,"name":"Priyanshi","routine":"Check Search Console alerts\nUpdate project tracker","since":1794200400000,"status":"active","title":"SEO & Content \u00b7 Project Manager","workdays":[1,2,3,4,5],"role":"pm"},"members/demo-praveen":{"demo":true,"name":"Praveen","routine":"Check client emails and support tickets\nUpdate project tracker","since":1794200400000,"status":"active","title":"Web Developer","workdays":[1,2,3,5,6],"role":"member","pm":"demo-priyanshi"},"holidays/2026-11":{"days":{"24":{"reason":"Guru Nanak Jayanti","scope":"all","by":"demo","at":1794380000000}}}};
+const DEMO_SEED={"members/demo-krisha":{"demo":true,"name":"Krisha","routine":"Check team chat and emails","since":1794590000000,"status":"active","title":"","workdays":[1,2,3,4,5],"role":"member","pm":"demo-priyanshi"},"plans/demo-krisha/months/2026-11":{"days":{"13":{"tasks":"Campusin: shortlist 20 colleges for the Assam page\nDraft Instagram captions for next week\nFix broken image links on advantageseniors.org blog","prio":{"tlfpinp":"h","t1kyrd67":"","tpo8i46":"u"},"by":"demo","at":1794500000000},"16":{"tasks":"EPTECH: client demo deck\nCampusin: upload 10 college profiles\nReply to EPTECH content queries\nOrganise shared Drive folders\nProofread 2 Campusin blog posts","prio":{"tnjx20j":"uh","t1qxt9b8":"h","tucc9d2":"u","tvpuldp":"l","t1nfzpue":""},"by":"demo","at":1794500000000},"17":{"tasks":"Campusin: upload remaining college profiles\nMonthly social media report","prio":{"tcx75q5":"h","tc6k0yv":""},"by":"demo","at":1794500000000}}},"plans/demo-praveen/months/2026-11":{"days":{"11":{"at":1794380000000,"by":"demo","tasks":"EPTECH homepage: remaining 2 feedback points\nCampusin: college detail gallery"},"02":{"at":1793539800000,"by":"demo","tasks":"EPTECH homepage: build hero section\nEPTECH homepage: services grid"},"03":{"at":1793626200000,"by":"demo","tasks":"EPTECH homepage: testimonials slider\nFix ASNFS contact form spam"},"04":{"at":1793712600000,"by":"demo","tasks":"EPTECH homepage: footer + mobile QA"},"07":{"at":1793971800000,"by":"demo","tasks":"Campusin: fix pagination\nCampusin: college detail page layout"},"09":{"at":1794144600000,"by":"demo","tasks":"EPTECH homepage: client feedback round 1 fixes\nCampusin: college detail gallery"}}},"plans/demo-priyanshi/months/2026-11":{"days":{"11":{"at":1794380000000,"by":"demo","tasks":"Campusin: 2 blog posts\nadvantAGE Seniors: monthly SEO report"},"02":{"at":1793539800000,"by":"demo","tasks":"advantAGE Seniors: fix 404s from SEO audit\nWrite 2 blog posts for Campusin"},"03":{"at":1793626200000,"by":"demo","tasks":"advantAGE Seniors: meta titles for 40 pages"},"04":{"at":1793712600000,"by":"demo","tasks":"Campusin: keyword research for engineering pages"},"06":{"at":1793885400000,"by":"demo","tasks":"IC Solutions Instagram: 5 posts for next week"},"07":{"at":1793971800000,"by":"demo","tasks":"advantAGE Seniors: remaining 12 meta titles\nEPTECH: on-page SEO checklist"},"09":{"at":1794144600000,"by":"demo","tasks":"Campusin: 2 blog posts\nadvantAGE Seniors: monthly SEO report"}}},"scores/demo-praveen/months/2026-11":{"days":{"02":{"ai":5,"approved":true,"at":1793629800000,"by":"demo","final":5,"kind":"scored","reason":"All assigned items completed and verifiable on staging."},"03":{"ai":4,"approved":true,"at":1793716200000,"by":"demo","final":4,"kind":"scored","reason":"Slider done and spam fix verified; one routine item partly done."},"04":{"ai":7,"approved":true,"at":1793802600000,"by":"demo","final":7,"kind":"scored","reason":"Normal workload finished plus a late-night malware recovery that saved the client site. Extraordinary."},"07":{"ai":4,"aiAt":1794058260000,"approved":false,"reason":"Pagination fixed; detail page mostly done. Solid day with one item partly open."},"13":{"ai":3,"aiAt":1794590000000,"approved":false,"reason":"Partial leave day: a useful bug fix and client replies in about two hours. Good for a partial day."}}},"scores/demo-priyanshi/months/2026-11":{"days":{"02":{"ai":5,"approved":true,"at":1793629800000,"by":"demo","final":5,"kind":"scored","reason":"Clear output with counts and titles; all tasks complete."},"03":{"ai":3,"approved":true,"at":1793716200000,"by":"demo","final":3,"kind":"scored","reason":"Only 28 of 40 pages done; lighter day than planned."},"04":{"ai":5,"approved":true,"at":1793802600000,"by":"demo","final":5,"kind":"scored","reason":"Complete, specific deliverable."},"06":{"ai":5,"approved":true,"at":1793975400000,"by":"demo","final":5,"kind":"scored","reason":"All 5 posts done and scheduled."},"07":{"ai":5,"aiAt":1794058260000,"approved":false,"reason":"Assigned work complete plus a schema fix; a full, productive day."}}},"entries/demo-praveen/months/2026-11":{"days":{"02":{"at":1793626200000,"checks":{"t1bdr22s":"done","t1rat91n":"done","t1v4vhxk":"done","t631sb5":"done"},"done":"Hero section done with the new video background and CTA, pushed to staging (staging.ep-techsolutions.com). Services grid built for desktop; mobile breakpoints done too. Replied to 3 client tickets.","status":"worked","tasks":""},"03":{"at":1793712600000,"checks":{"t1bdr22s":"done","t1rat91n":"done","tnqbhw8":"done","txbq2al":"partial"},"done":"Testimonials slider done. ASNFS contact form: added honeypot + reCAPTCHA v3, spam stopped since 3pm. Tracker updated.","status":"worked","tasks":""},"04":{"at":1793799000000,"checks":{"t1bdr22s":"done","t1rat91n":"done","t3xfnz6":"done"},"done":"Footer done, full mobile QA on 6 devices, fixed 14 layout bugs. Also late evening ASNFS got hit by malware again: cleaned 212 infected files, restored from backup, changed all passwords, site back by 10:40pm.","status":"worked","tasks":"Emergency malware cleanup on asnfs.org"},"06":{"at":1793971800000,"checks":{},"done":"Campusin API credentials were blocked by client, waiting on them all day. Did internal code cleanup.","status":"nowork","tasks":""},"07":{"at":1794058200000,"checks":{"t1742420":"partial","t1bdr22s":"done","t1c2o5kg":"done","t1rat91n":"done"},"done":"Pagination fixed. College detail page layout 70% done, gallery section pending.","status":"worked","tasks":""},"09":{"at":1794229000000,"checks":{"t1bdr22s":"done","t1rat91n":"done","thoyz8a":"done"},"done":"EPTECH: done 9 of 11 feedback points, 2 need client content. Campusin gallery not started yet.","status":"worked","tasks":""},"13":{"at":1794580000000,"checks":{},"done":"On partial leave, worked about 2 hours: answered client emails and fixed the EPTECH mobile menu bug the client reported. Gallery still pending.","status":"worked","tasks":""}}},"entries/demo-priyanshi/months/2026-11":{"days":{"02":{"at":1793626200000,"checks":{"t1i98d52":"done","t1rat91n":"done","t35h08n":"done","tzle3ld":"done"},"done":"Fixed 37 broken links on advantageseniors.org with 301 redirects, resubmitted sitemap. Wrote 2 blogs (1,200 words each) for Campusin: 'Top MBA colleges in Assam' and 'NEET counselling guide', sent for review.","status":"worked","tasks":""},"03":{"at":1793712600000,"checks":{"t1rat91n":"done","t35h08n":"done","th066qs":"partial"},"done":"Rewrote meta titles + descriptions for 28 of 40 pages.","status":"worked","tasks":""},"04":{"at":1793799000000,"checks":{"t1rat91n":"done","t35h08n":"done","tcqvmyb":"done"},"done":"Keyword sheet done: 180 keywords grouped into 12 clusters with volume and difficulty. Shared on Drive.","status":"worked","tasks":""},"05":{"at":1793885400000,"checks":{},"done":"Family function","status":"leave","tasks":""},"06":{"at":1793971800000,"checks":{"t1io0mrl":"done","t1rat91n":"done","t35h08n":"done"},"done":"Designed and scheduled 5 posts on Meta Business Suite. Captions approved by Anurag.","status":"worked","tasks":""},"07":{"at":1794058200000,"checks":{"t129teao":"done","t1rat91n":"done","t1s711hi":"done","t35h08n":"done"},"done":"Finished remaining 12 meta titles. EPTECH SEO checklist done for homepage and 4 service pages. Also fixed schema markup errors that Search Console flagged.","status":"worked","tasks":""}}},"leaves/demo-praveen/months/2026-11":{"days":{"13":{"at":1794500000000,"by":"demo","reason":"Half day, personal work","type":"partial"}}},"leaves/demo-priyanshi/months/2026-11":{"days":{"05":{"at":1793800000000,"by":"demo","reason":"Family function","type":"paid"}}},"members/demo-priyanshi":{"demo":true,"name":"Priyanshi","routine":"Check Search Console alerts\nUpdate project tracker","since":1794200400000,"status":"active","title":"SEO & Content \u00b7 Project Manager","workdays":[1,2,3,4,5],"role":"pm"},"members/demo-praveen":{"demo":true,"name":"Praveen","routine":"Check client emails and support tickets\nUpdate project tracker","since":1794200400000,"status":"active","title":"Web Developer","workdays":[1,2,3,5,6],"role":"member","pm":"demo-priyanshi"},"holidays/2026-11":{"days":{"24":{"reason":"Guru Nanak Jayanti","scope":"all","by":"demo","at":1794380000000}}}};
 function memDB(){
   const KEY="ics-demo-db-v3";let docs;
   try{docs=JSON.parse(localStorage.getItem(KEY)||"null")}catch{}
   if(!docs)docs=JSON.parse(JSON.stringify(DEMO_SEED));
+  else for(const p of Object.keys(DEMO_SEED))if(!(p in docs)&&/^(members|plans)\/demo-krisha/.test(p))docs[p]=JSON.parse(JSON.stringify(DEMO_SEED[p]));  // people added to the demo later
   const save=()=>{try{localStorage.setItem(KEY,JSON.stringify(docs))}catch{}};
   const subs=new Set();const fire=()=>setTimeout(()=>subs.forEach(f=>f()),0);
   const clone=v=>v==null?v:JSON.parse(JSON.stringify(v));
@@ -907,16 +966,42 @@ function myView(){
   const locked=!canEditDay(S.me,date)||(!!lv&&lv.type!=="partial");
   const tmax=lv?.type==="partial"?PARTIAL_MAX:5;
   const plan=planFor(S.me,ym,Number(dd));
-  const checklist=h("ul",{class:"tasks"});
-  for(const t of plan){const v=D.checks[t.k]=taskVal(D.checks[t.k])||{s:null,c:""};
-    const pick=h("div",{class:"spick",role:"group","aria-label":"Your score for "+t.text});
+  const isBack=t=>t.src==="carried";
+  const todays=plan.filter(t=>!isBack(t)),backlog=plan.filter(isBack);
+  const TO=S.taskOpen=S.taskOpen||{};const ok=t=>date+"|"+t.k;
+  const card=t=>{const back=isBack(t);
+    const v=D.checks[t.k]=taskVal(D.checks[t.k])||{s:null,c:"",st:""};
     if(v.s!=null&&v.s>tmax)v.s=tmax;
-    for(let n=0;n<=tmax;n++)pick.append(h("button",{type:"button",class:n<=2?"lo":n<tmax?"mid":"","aria-pressed":String(v.s===n),title:n===tmax?"Best work":n===0?"Not done":n+" of 5",onclick:()=>{v.s=v.s===n?null:n;render()}},n));
-    const cm=h("textarea",{id:"tc-"+t.k,placeholder:"Comment (required): what you did, links or counts, and what's left",oninput:e=>{v.c=e.target.value}});cm.value=v.c;
-    checklist.append(h("li",{class:"task"+(S.needTasks?.includes(t.k)?" need":"")},
-      h("div",{class:"tt"},h("div",{class:"src "+srcTag(t)[0],text:srcTag(t)[1]}),t.text),
-      h("div",{class:"spick-wrap"},pick,h("span",{class:"small",text:v.s==null?(tmax===5?"Score 0–5 · 5 = perfectly done":"Score 0–4 · partial leave"):v.s===tmax?v.s+"/"+tmax+" · "+(tmax===5?"perfectly done":"best for a partial day"):v.s+"/"+tmax})),
-      h("div",{class:"tcomment"},h("label",{class:"sr",for:"tc-"+t.k,style:"position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap",text:"Comment for "+t.text}),cm)))}
+    const need=S.needTasks?.includes(t.k);
+    const pill=back?(v.st==="done"||(!v.st&&v.s!=null&&v.s>=tmax)?["ok","Done"]:v.st==="progress"?["sky","In progress"]:["","Pending"])
+      :v.s==null?["coral","Needs score"]:!v.c.trim()?["gold",v.s+"/"+tmax+" · add comment"]:[sClass(v.s)||"ok",v.s+"/"+tmax];
+    const body=h("div",{class:"tbody"});
+    if(back){const cur=v.st||(v.s!=null&&v.s>=tmax?"done":"todo");const seg=h("div",{class:"seg",role:"group","aria-label":"Status of "+t.text});
+      [["todo","Pending"],["progress","In progress"],["done","Done"]].forEach(([k,l])=>seg.append(h("button",{type:"button","aria-pressed":String(cur===k),onclick:()=>{v.st=k;v.s=k==="done"?tmax:null;render()}},l)));
+      body.append(seg)}
+    else{const pick=h("div",{class:"spick",role:"group","aria-label":"Your score for "+t.text});
+      for(let n=0;n<=tmax;n++)pick.append(h("button",{type:"button",class:n<=2?"lo":n<tmax?"mid":"","aria-pressed":String(v.s===n),title:n===tmax?"Best work":n===0?"Not done":n+" of 5",onclick:()=>{v.s=v.s===n?null:n;render()}},n));
+      body.append(h("div",{class:"spick-wrap"},pick,h("span",{class:"small",text:v.s==null?(tmax===5?"Score 0–5 · 5 = perfectly done":"Score 0–4 · partial leave"):v.s===tmax?v.s+"/"+tmax+" · "+(tmax===5?"perfectly done":"best for a partial day"):v.s+"/"+tmax})))}
+    const cm=h("textarea",{id:"tc-"+t.k,placeholder:back?"Note (optional): what you did on it today":"Comment (required): what you did, links or counts, and what's left",oninput:e=>{v.c=e.target.value}});cm.value=v.c;
+    body.append(h("div",{class:"tcomment"},h("label",{for:"tc-"+t.k,style:"position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap",text:"Comment for "+t.text}),cm));
+    if(t.src==="self"&&!locked&&!existing?.checks?.[t.k])body.append(h("button",{type:"button",class:"linkbtn small",style:"justify-self:start",onclick:()=>removeMyTask(date,t.k)},"Remove this task"));
+    return h("li",null,h("details",{class:"tcard"+(need?" need":"")+(back?" back":""),open:(TO[ok(t)]??need)||null,ontoggle:e=>{TO[ok(t)]=e.target.open}},
+      h("summary",null,h("span",{class:"tsum"},prioBadge(t.p),h("span",{class:"ttx",text:t.text}),h("span",{class:"src "+srcTag(t)[0],text:srcTag(t)[1]})),h("span",{class:"chip "+pill[0],text:pill[1]}),h("span",{class:"chev","aria-hidden":"true"})),
+      body))};
+  const allOpen=plan.length&&plan.every(t=>TO[ok(t)]);
+  const toggleAll=h("button",{type:"button",class:"linkbtn small",onclick:()=>{for(const t of plan)TO[ok(t)]=!allOpen;render()}},allOpen?"Collapse all":"Expand all");
+  const NT=S.newTask=S.newTask||{t:"",p:""};
+  const addMine=async()=>{const ts=lines(NT.t);if(!ts.length)return toast("Type a task first");blurNow();
+    try{for(const t of ts)await addMyTask(date,t.slice(0,300),NT.p);NT.t="";NT.p="";toast(ts.length===1?"Task added":ts.length+" tasks added");render();refocus("my-newtask")}catch(e){toast(e.message||("Couldn't add the task ("+e.code+")"))}};
+  const addBox=h("div",{class:"addtask"},
+    h("input",{type:"text",id:"my-newtask",value:NT.t,placeholder:"Add a task for yourself (press Enter)","aria-label":"New task for yourself",oninput:e=>{NT.t=e.target.value},onkeydown:e=>{if(e.key==="Enter"){e.preventDefault();addMine()}}}),
+    prioPicker(NT.p,p=>{NT.p=p;render()},"Priority of the new task"),h("button",{type:"button",class:"btn sm",onclick:addMine},"Add"));
+  const scored=todays.filter(t=>{const v=taskVal(D.checks[t.k]);return v&&v.s!=null&&v.c.trim()}).length;
+  const checklist=[h("div",{class:"tl-head"},h("span",{class:"eyebrow",text:"Your tasks"}),todays.length?h("span",{class:"chip "+(scored===todays.length?"ok":""),text:scored+"/"+todays.length+" done"}):null,h("span",{class:"grow"}),plan.length?toggleAll:null),
+    todays.length?h("ul",{class:"tlist"},todays.map(card)):h("p",{class:"muted small",style:"margin:0",text:"No tasks assigned for this day. Add your own below, or describe your work in the daily update."}),
+    locked?null:addBox,
+    backlog.length?[h("div",{class:"tl-head",style:"margin-top:8px"},h("span",{class:"eyebrow",text:"Backlog · "+backlog.length}),h("span",{class:"small muted",text:"Unfinished from earlier days. Set Done when finished; anything not done carries over."})),
+      h("ul",{class:"tlist"},backlog.map(card))]:null].flat();
   const dateIn=h("input",{type:"date",id:"my-date",value:date,max:todayKey(),onchange:e=>{if(!e.target.value)return;S.draftDate=e.target.value;S.draft=null;
     if(e.target.value.slice(0,7)!==S.month){S.month=e.target.value.slice(0,7);syncSubs()}render()}});
   const seg=h("div",{class:"seg",role:"group","aria-label":"Day status"});
@@ -925,14 +1010,17 @@ function myView(){
   const done=h("textarea",{id:"my-done",placeholder:"Write your update for the day: what you finished, what's pending and why, any blockers. Be specific: links, counts, client names.",oninput:e=>D.done=e.target.value});done.value=D.done;
   const save=h("button",{class:"btn primary",onclick:async()=>{
     if(locked)return toast(lv?"You're on leave this day.":"This day is locked. Ask your admin to unlock it.");
-    if(D.status==="worked"&&plan.length){const miss=plan.filter(t=>{const v=taskVal(D.checks[t.k]);return!v||v.s==null||!v.c.trim()});
-      S.needTasks=miss.map(t=>t.k);if(miss.length){render();return toast("Give a score and a comment for every task ("+miss.length+" left)")}}
-    if(D.status==="worked"&&!plan.length&&!D.done.trim())return toast("Write your daily update so it can be scored.");
+    if(D.status==="worked"&&todays.length){const miss=todays.filter(t=>{const v=taskVal(D.checks[t.k]);return!v||v.s==null||!v.c.trim()});
+      S.needTasks=miss.map(t=>t.k);if(miss.length){for(const t of miss)TO[ok(t)]=true;blurNow();render();return toast("Give a score and a comment for every task ("+miss.length+" left)")}}
+    const backMoved=backlog.some(t=>{const v=taskVal(D.checks[t.k]);return v&&v.st&&v.st!=="todo"});
+    if(D.status==="worked"&&!todays.length&&!backMoved&&!D.done.trim())return toast("Write your daily update so it can be scored.");
     save.disabled=true;
-    const checks={};for(const t of plan){const v=taskVal(D.checks[t.k]);if(v&&(v.s!=null||v.c.trim()))checks[t.k]={s:v.s,c:v.c.trim().slice(0,1000)}}
+    const checks={};for(const t of plan){const v=taskVal(D.checks[t.k]);if(!v)continue;
+      if(isBack(t)){if((v.st&&v.st!=="todo")||v.c.trim())checks[t.k]={st:v.st||"todo",s:v.st==="done"?tmax:null,c:v.c.trim().slice(0,1000)}}
+      else if(v.s!=null||v.c.trim())checks[t.k]={s:v.s,c:v.c.trim().slice(0,1000)}}
     S.needTasks=null;
     try{await writeDays("entries/"+S.me+"/months/"+ym,{[dd]:{status:D.status,checks,tasks:D.tasks.trim().slice(0,4000),done:D.status==="worked"?D.done.trim().slice(0,6000):D.done.trim().slice(0,1000),at:Date.now()}});
-      toast(D.status==="nowork"?"Saved: no work given (2 points)":"Saved, sent for review");document.activeElement?.blur();render()}
+      toast(D.status==="nowork"?"Saved: no work given (2 points)":"Saved, sent for review");for(const t of plan)TO[ok(t)]=false;document.activeElement?.blur();render()}
     catch(e){toast("Couldn't save ("+e.code+")")}finally{save.disabled=false}}},existing?"Update entry":"Submit day");
   const form=h("div",{class:"panel stack"},
     h("div",{class:"bar"},h("h2",{style:"font-size:22px",text:"Log your day"}),h("span",{class:"grow"}),h("div",{style:"width:170px"},dateIn)),
@@ -946,13 +1034,13 @@ function myView(){
       h("span",{text:"Yesterday ("+fmtKey(keyAdd(date,-1))+") isn't filled yet. You can still log it until 8 am IST."}),h("button",{class:"btn sm",onclick:()=>{S.draftDate=keyAdd(date,-1);S.draft=null;if(S.draftDate.slice(0,7)!==S.month){S.month=S.draftDate.slice(0,7);syncSubs()}render()}},"Fill yesterday")):null,
     h("div",{class:"field"},h("span",{class:"eyebrow",text:"Status"}),seg),
     D.status==="worked"?[
-      h("div",{class:"field"},h("span",{class:"eyebrow",text:"Your tasks for this day"}),plan.length?checklist:h("p",{class:"muted small",style:"margin:0",text:"No tasks assigned for this day. Describe your work in the daily update below."})),
-      h("div",{class:"field"},h("label",{for:"my-done",text:plan.length?"Overall notes (optional)":"Daily update"}),done),
+      h("div",{class:"field"},checklist),
+      h("div",{class:"field"},h("label",{for:"my-done",text:todays.length?"Overall notes (optional)":"Daily update"}),done),
       h("div",{class:"field"},h("label",{for:"my-tasks",text:"Other work (optional)"}),tasks),
       h("p",{class:"muted small",style:"margin:0",text:"Claude reads this and suggests a score; your admin approves it."})]:
       h("div",{class:"field"},h("label",{for:"my-done",text:"What were you available for? (optional)"}),done),
     locked?null:h("div",{class:"bar"},save,existing?h("span",{class:"muted small",text:"Last saved "+fmtTime(existing.at)}):null));
-  if(locked)form.querySelectorAll("textarea,.seg button").forEach(el=>el.disabled=true);
+  if(locked)form.querySelectorAll("textarea,.seg button,.spick button").forEach(el=>el.disabled=true);
   return[h("div",{class:"split"},form,h("div",{class:"stack",id:"my-side"}))];
 }
 function renderMyHistory(){
@@ -1023,7 +1111,7 @@ For each entry give a reason of at most 25 words addressed to the manager.`;
 async function runAI(items){
   S.busy=true;render();
   const payload=items.map(x=>({id:x.id,
-    assigned_tasks:planFor(x.uid,x.ym,x.d).map(t=>{const v=taskVal(x.i.e.checks?.[t.k]);return{task:t.text.slice(0,300),type:t.src==="carried"?"carried over, unfinished since "+t.from:t.src==="redo"?(t.fromUser?"reassigned to this person because an earlier attempt by a colleague was not satisfactory":"redo requested by manager")+(t.note?": "+t.note:""):t.src,self_score_out_of_5:v?.s??"not scored",employee_comment:(v?.c||"").slice(0,800)}}),
+    assigned_tasks:planFor(x.uid,x.ym,x.d).map(t=>{const v=taskVal(x.i.e.checks?.[t.k]);return{task:t.text.slice(0,300),priority:PRIO[prioCode(t.p)].label||"normal",backlog_status:t.src==="carried"?(v?.st||"not updated"):undefined,type:t.src==="carried"?"carried over, unfinished since "+t.from:t.src==="self"?"added by the team member themselves":t.src==="redo"?(t.fromUser?"reassigned to this person because an earlier attempt by a colleague was not satisfactory":"redo requested by manager")+(t.note?": "+t.note:""):t.src,self_score_out_of_5:v?.s??"not scored",employee_comment:(v?.c||"").slice(0,800)}}),
     daily_update:(x.i.e.done||"").slice(0,3000),other_work:(x.i.e.tasks||"").slice(0,1500),
     off_day:x.i.offday||null,partial_leave:!!x.i.partial}));
   try{
@@ -1041,8 +1129,9 @@ async function runAI(items){
 function statusList(plan,checks,ctx){const ul=h("ul",{class:"status-list"});
   for(const t of plan){const v=taskVal(checks?.[t.k]);const tag=srcTag(t);const fk=ctx?ctx.uid+"|"+ctx.key+"|"+t.k:"";
     const canAct=ctx&&manages(ctx.uid)&&t.src!=="routine";
-    ul.append(h("li",null,h("span",{class:"chip "+sClass(v?.s),style:"min-width:44px;text-align:center",text:v?.s!=null?v.s+"/5":"–/5"}),
-      h("span",null,t.src==="carried"||t.src==="redo"?h("span",{class:"tag "+tag[0],text:t.src==="carried"?"Carried · ":t.fromUser?"Reassigned · ":"Redo · "}):null,t.text),
+    const pl=checkPill(t,v);
+    ul.append(h("li",null,h("span",{class:"chip "+pl[0],style:"min-width:44px;text-align:center",text:pl[1]}),
+      h("span",null,prioBadge(t.p),t.p?" ":null,t.src==="carried"||t.src==="redo"||t.src==="self"?h("span",{class:"tag "+tag[0],text:t.src==="carried"?"Backlog · ":t.src==="self"?"Self-added · ":t.fromUser?"Reassigned · ":"Redo · "}):null,t.text),
       canAct?h("span",{class:"acts"},h("button",{class:"btn sm",onclick:()=>{S.redoOpen=S.redoOpen===fk?null:fk;render()}},"Redo / reassign")):null,
       v?.c?h("span",{class:"cm",text:v.c}):null,
       canAct&&S.redoOpen===fk?redoForm(ctx.uid,ctx.key,t):null))}
@@ -1055,39 +1144,60 @@ function redoForm(uid,fromKey,t){
   const who=h("select",{id:id+"-u","aria-label":"Give this task to",onchange:()=>{di.value=redoDefault(who.value,fromKey);ni.placeholder=who.value===uid?"What to fix (shown to "+nm(uid)+")":"Note for "+nm(who.value)+" (optional)";go.textContent=who.value===uid?"Repost task":"Reassign task"}},
     h("option",{value:uid},nm(uid)+" again"),...others.map(o=>h("option",{value:o},nm(o))));
   const go=h("button",{class:"btn primary sm",onclick:()=>{const k=di.value,to=who.value;if(!k)return toast("Pick a date");if(!isWorkDay(to,k))return toast(fmtKey(k)+" isn't a working day for "+nm(to));
-    if(to===uid)doRedo(uid,k,t.text,fromKey,ni.value.trim());else doReassign(uid,to,k,t.text,fromKey,ni.value.trim())}},"Repost task");
+    if(to===uid)doRedo(uid,k,t.text,fromKey,ni.value.trim(),t.p);else doReassign(uid,to,k,t.text,fromKey,ni.value.trim(),t.p)}},"Repost task");
   return h("div",{class:"redo-form"},h("b",{class:"small",text:"Give to"}),others.length?who:h("span",{class:"small",text:nm(uid)}),di,ni,go,
     h("button",{class:"btn ghost sm",onclick:()=>{S.redoOpen=null;render()}},"Cancel"))}
 
 /* plan */
 function nextWorkday(k){const d=new Date(k+"T00:00:00");do{d.setDate(d.getDate()+1)}while(d.getDay()===0);return ymOf(d)+"-"+pad(d.getDate())}
 function prevWorkday(k){const d=new Date(k+"T00:00:00");do{d.setDate(d.getDate()-1)}while(d.getDay()===0);return ymOf(d)+"-"+pad(d.getDate())}
-async function doRedo(uid,key,text,from,note){
+async function doRedo(uid,key,text,from,note,p){
   const P=planDoc(uid,key)||{};const k=tkey(text);
-  const redo=(P.redo||[]).filter(r=>tkey(r.t)!==k).concat([{t:text,from,note:note.slice(0,200),by:S.me,at:Date.now()}]);
+  const redo=(P.redo||[]).filter(r=>tkey(r.t)!==k).concat([{t:text,from,note:note.slice(0,200),p:prioCode(p),by:S.me,at:Date.now()}]);
   try{await writeDays("plans/"+uid+"/months/"+key.slice(0,7),{[key.slice(8)]:{redo,drop:(P.drop||[]).filter(x=>x!==k)}});S.redoOpen=null;toast("Reposted for "+nm(uid)+" on "+fmtKey(key));render()}
   catch(e){if(e.code!=="preview")toast("Couldn't repost ("+e.code+")")}}
-async function doReassign(fromUid,toUid,key,text,fromKey,note){
+async function doReassign(fromUid,toUid,key,text,fromKey,note,p){
   const k=tkey(text),P=planDoc(toUid,key)||{};
-  const redo=(P.redo||[]).filter(r=>tkey(r.t)!==k).concat([{t:text,from:fromKey,fromUser:fromUid,note:note.slice(0,200),by:S.me,at:Date.now()}]);
+  const redo=(P.redo||[]).filter(r=>tkey(r.t)!==k).concat([{t:text,from:fromKey,fromUser:fromUid,note:note.slice(0,200),p:prioCode(p),by:S.me,at:Date.now()}]);
   const nk=nextPlanDay(fromUid,fromKey),Q=planDoc(fromUid,nk)||{};   // stop it carrying for the first person
   try{await writeDays("plans/"+toUid+"/months/"+key.slice(0,7),{[key.slice(8)]:{redo,drop:(P.drop||[]).filter(x=>x!==k)}});
     await writeDays("plans/"+fromUid+"/months/"+nk.slice(0,7),{[nk.slice(8)]:{drop:[...new Set([...(Q.drop||[]),k])],redo:(Q.redo||[]).filter(r=>tkey(r.t)!==k)}});
     S.redoOpen=null;toast("Reassigned to "+nm(toUid)+" on "+fmtKey(key));render()}
   catch(e){if(e.code!=="preview")toast("Couldn't reassign ("+e.code+")")}}
+async function addMyTask(key,t,p){const P=planDoc(S.me,key)||{};const k=tkey(t);
+  if(planFor(S.me,key.slice(0,7),Number(key.slice(8))).some(x=>x.k===k))throw{message:"That task is already on your list"};
+  await writeDays("plans/"+S.me+"/months/"+key.slice(0,7),{[key.slice(8)]:{mine:(P.mine||[]).concat([{t,p:prioCode(p),at:Date.now()}])}})}
+async function removeMyTask(key,k){const P=planDoc(S.me,key)||{};
+  try{await writeDays("plans/"+S.me+"/months/"+key.slice(0,7),{[key.slice(8)]:{mine:(P.mine||[]).filter(x=>tkey(x.t)!==k)}});delete S.draft?.checks?.[k];toast("Task removed")}catch(e){if(e.code!=="preview")toast("Couldn't remove ("+e.code+")")}}
 async function removePlanItem(uid,key,t){
   const P=planDoc(uid,key)||{};
   const patch=t.src==="redo"?{redo:(P.redo||[]).filter(r=>tkey(r.t)!==t.k)}:{drop:[...new Set([...(P.drop||[]),t.k])]};
   try{await writeDays("plans/"+uid+"/months/"+key.slice(0,7),{[key.slice(8)]:patch});toast("Removed from "+fmtKey(key)+(t.src==="carried"?"; it won't carry forward":""))}
   catch(e){if(e.code!=="preview")toast("Couldn't remove ("+e.code+")")}}
 function autoList(uid,key){
-  const items=planFor(uid,key.slice(0,7),Number(key.slice(8))).filter(t=>t.src==="carried"||t.src==="redo");
+  const items=planFor(uid,key.slice(0,7),Number(key.slice(8))).filter(t=>t.src==="carried"||t.src==="redo"||t.src==="self");
   if(!items.length)return null;
   const future=key>todayKey();
-  return h("div",{class:"field"},h("span",{class:"eyebrow",text:"Added automatically"+(future?" (if still unfinished)":"")}),
-    h("div",{class:"auto-list"},...items.map(t=>{const tg=srcTag(t);return h("div",{class:"auto-item"},h("span",{class:"tag "+tg[0],text:t.src==="carried"?"Carried":t.fromUser?"Reassigned":"Redo"}),h("span",{class:"tt"},t.text,h("span",{class:"small muted",text:" · "+(t.src==="carried"?"since ":t.fromUser?"from "+nm(t.fromUser)+", ":"from ")+fmtKey(t.from)+(t.note?" · "+t.note:"")})),
-      h("button",{class:"btn ghost sm",onclick:()=>removePlanItem(uid,key,t)},"Remove"))})));
+  return h("div",{class:"field"},h("span",{class:"eyebrow",text:"Added automatically or by "+firstName(uid)+(future?" (backlog shows if still unfinished)":"")}),
+    h("div",{class:"auto-list"},...items.map(t=>{const tg=srcTag(t);return h("div",{class:"auto-item"},h("span",{class:"tag "+tg[0],text:t.src==="carried"?"Backlog":t.src==="self"?"Self-added":t.fromUser?"Reassigned":"Redo"}),
+      h("span",{class:"tt"},prioBadge(t.p),t.p?" ":null,t.text,h("span",{class:"small muted",text:t.src==="self"?"":" · "+(t.src==="carried"?"since ":t.fromUser?"from "+nm(t.fromUser)+", ":"from ")+fmtKey(t.from)+(t.note?" · "+t.note:"")})))})));
 }
+function taskEditor(dk,uid,key){
+  const list=S.planDrafts[dk]=S.planDrafts[dk]||savedTasks(uid,key);
+  S.newPrio=S.newPrio||{};S.newText=S.newText||{};
+  const box=h("div",{class:"tedit"});
+  list.forEach((x,i)=>box.append(h("div",{class:"trow"},
+    h("input",{type:"text",value:x.t,"aria-label":"Task "+(i+1)+" for "+nm(uid),oninput:e=>{x.t=e.target.value}}),
+    prioPicker(x.p,p=>{x.p=p;render()},"Priority of task "+(i+1)),
+    h("button",{type:"button",class:"btn ghost sm del","aria-label":"Delete task "+(i+1),title:"Delete",onclick:()=>{list.splice(i,1);render()}},"×"))));
+  const add=()=>{const ts=lines(S.newText[dk]);if(!ts.length)return toast("Type a task first");for(const t of ts)list.push({t:t.slice(0,300),p:prioCode(S.newPrio[dk])});S.newPrio[dk]="";S.newText[dk]="";blurNow();render();refocus("plan-"+uid)};
+  box.append(h("div",{class:"trow new"},
+    h("input",{type:"text",id:"plan-"+uid,value:S.newText[dk]||"",oninput:e=>{S.newText[dk]=e.target.value},placeholder:list.length?"Add another task (Enter)":"Add a task and press Enter · paste many lines at once","aria-label":"New task for "+nm(uid),onkeydown:e=>{if(e.key==="Enter"){e.preventDefault();add()}},onpaste:e=>{const t=e.clipboardData?.getData("text")||"";if(t.includes("\n")){e.preventDefault();S.newText[dk]=t;add()}}}),
+    prioPicker(S.newPrio[dk],p=>{S.newPrio[dk]=p;render()},"Priority of the new task"),
+    h("button",{type:"button",class:"btn sm",onclick:add},"Add")));
+  return box}
+function planChanged(dk,uid,key){const d=S.planDrafts[dk];if(!d)return false;const clean=a=>JSON.stringify(a.map(x=>[x.t.trim(),prioCode(x.p)]).filter(x=>x[0]));return clean(d)!==clean(savedTasks(uid,key))}
+function planPayload(list){const ts=[],prio={};for(const x of list){const t=x.t.trim().slice(0,300);if(!t||ts.includes(t))continue;ts.push(t);prio[tkey(t)]=prioCode(x.p)}return{tasks:ts.join("\n").slice(0,3000),prio}}
 function planText(uid,key){const[y,m,dd]=key.split("-");return S.plans[uid+"|"+y+"-"+m]?.days?.[dd]?.tasks||""}
 function planView(){
   let key=S.planDate||todayKey();
@@ -1107,22 +1217,22 @@ function planView(){
   const cards=[];
   for(const uid of ids){
     const dk=key+"|"+uid;const saved=planText(uid,key);
-    const ta=h("textarea",{id:"plan-"+uid,placeholder:"One task per line\nEPTECH homepage hero section\nCampusin SEO report draft",oninput:e=>S.planDrafts[dk]=e.target.value});ta.value=S.planDrafts[dk]??saved;
+    const ta=taskEditor(dk,uid,key);
     const rk=uid;
     const rt=h("textarea",{id:"routine-"+uid,style:"min-height:64px",placeholder:"e.g. Check client emails\nUpdate project tracker",oninput:e=>S.routineDrafts[rk]=e.target.value});rt.value=S.routineDrafts[rk]??(S.members[uid].routine||"");
     const entry=S.entries[uid+"|"+ym]?.days?.[key.slice(8)];
-    const changed=()=>S.planDrafts[dk]!==saved||S.routineDrafts[rk]!==(S.members[uid].routine||"");
+    const changed=()=>planChanged(dk,uid,key)||S.routineDrafts[rk]!==(S.members[uid].routine||"");
     cards.push({uid,dk,rk,changed});
     grid.append(h("div",{class:"pcard"},
       h("div",{class:"ph"},avatar(uid),h("div",{style:"flex:1;min-width:0"},h("h3",{text:nm(uid)}),h("div",{class:"small muted"},(S.members[uid].title?S.members[uid].title+" · ":""),"Works ",h("span",{class:"wd-chip",text:wdLabel(uid)}))),entry?h("span",{class:"chip ok",text:"Logged"}):null),
       !isWorkDay(uid,key)?h("div",{class:"notice "+(leaveOn(uid,ym,Number(key.slice(8)))?"l":holidayOn(uid,ym,Number(key.slice(8)))?"h":"d"),text:(leaveOn(uid,ym,Number(key.slice(8)))?"On leave":holidayOn(uid,ym,Number(key.slice(8)))?"Holiday":"Weekly off")+" this day. Tasks you add here won't appear for "+nm(uid)+"."}):null,
       autoList(uid,key),
-      h("div",{class:"field"},h("label",{for:"plan-"+uid,text:"New tasks for "+fmtDay(ym,Number(key.slice(8)))}),ta),
+      h("div",{class:"field"},h("span",{class:"eyebrow",text:"Tasks for "+fmtDay(ym,Number(key.slice(8)))}),ta),
       h("details",null,h("summary",{class:"small muted",style:"cursor:pointer"},S.isAdmin?"Working days & daily routine":"Daily routine"),
         S.isAdmin?h("div",{class:"field",style:"margin-top:8px"},h("span",{class:"small",text:"Works on"}),dayToggles(S.wdDrafts[uid]=S.wdDrafts[uid]||[...workdays(uid)],()=>render())):null,
         h("div",{class:"field",style:"margin-top:8px"},h("label",{for:"routine-"+uid,class:"small",text:"Daily routine · repeats every working day"}),rt))));
   }
-  const copyBtn=h("button",{class:"btn",onclick:()=>{const pk=prevWorkday(key);let n=0;for(const c of cards){const t=planText(c.uid,pk);if(t&&!(S.planDrafts[c.dk]??planText(c.uid,key))){S.planDrafts[c.dk]=t;n++}}toast(n?"Copied "+n+" plan"+(n===1?"":"s")+" from "+pk:"Nothing to copy from the previous working day");render()}},"Copy previous day");
+  const copyBtn=h("button",{class:"btn",onclick:()=>{const pk=prevWorkday(key);let n=0;for(const c of cards){const t=savedTasks(c.uid,pk);if(t.length&&!(S.planDrafts[c.dk]||[]).some(x=>x.t.trim())){S.planDrafts[c.dk]=t;n++}}toast(n?"Copied "+n+" plan"+(n===1?"":"s")+" from "+pk:"Nothing to copy from the previous working day");render()}},"Copy previous day");
   const saveBtn=h("button",{class:"btn primary",onclick:async()=>{
     saveBtn.disabled=true;const days=[key];
     if(S.planWeek){let k=key;while(new Date(k+"T00:00:00").getDay()!==6){k=nextWorkday(k);days.push(k)}}
@@ -1130,13 +1240,13 @@ function planView(){
       for(const c of cards){
         if(S.routineDrafts[c.rk]!=null&&S.routineDrafts[c.rk]!==(S.members[c.uid].routine||"")){await S.db.doc("members/"+c.uid).update({routine:S.routineDrafts[c.rk].trim().slice(0,2000)});n++}
         const wd=S.wdDrafts[c.uid];if(wd&&wd.slice().sort().join()!==workdays(c.uid).slice().sort().join()){if(!wd.length){toast("Pick at least one working day for "+nm(c.uid));continue}await S.db.doc("members/"+c.uid).update({workdays:wd.slice().sort()});delete S.wdDrafts[c.uid];n++}
-        const txt=(S.planDrafts[c.dk]??planText(c.uid,key)).trim().slice(0,3000);
-        if(txt===planText(c.uid,key).trim()&&days.length===1)continue;
-        const byYm={};for(const k of days){(byYm[k.slice(0,7)]=byYm[k.slice(0,7)]||{})[k.slice(8)]={tasks:txt,by:S.me,at:Date.now()}}
-        for(const[m,patch]of Object.entries(byYm))await writeDays("plans/"+c.uid+"/months/"+m,patch);n++}
+        if(!planChanged(c.dk,c.uid,key)&&days.length===1)continue;
+        const pl=planPayload(S.planDrafts[c.dk]||savedTasks(c.uid,key));
+        const byYm={};for(const k of days){(byYm[k.slice(0,7)]=byYm[k.slice(0,7)]||{})[k.slice(8)]={tasks:pl.tasks,prio:pl.prio,by:S.me,at:Date.now()}}
+        for(const[m,patch]of Object.entries(byYm))await writeDays("plans/"+c.uid+"/months/"+m,patch);delete S.planDrafts[c.dk];n++}
       toast(n?"Plans saved"+(days.length>1?" for "+days.length+" days":""):"No changes to save")}
     catch(e){toast("Couldn't save plans ("+e.code+")")}finally{saveBtn.disabled=false}}},"Save plans");
-  return[head,h("div",{class:"notice d",text:"Unfinished tasks move to the next working day automatically: anything not scored 5/5 by the team member (or not logged) carries over until it's done or you remove it."}),grid,h("div",{class:"bar"},saveBtn,copyBtn,h("label",{class:"check"},week,"Also apply to the rest of this week (to Saturday)"))];
+  return[head,h("div",{class:"notice d",text:"Tasks are listed by priority: Critical (Urgent + High), Urgent, High, normal, then Low. Unfinished tasks move to the team member's backlog on the next working day until they mark them Done."}),grid,h("div",{class:"bar"},saveBtn,copyBtn,h("label",{class:"check"},week,"Also apply to the rest of this week (to Saturday)"))];
 }
 
 /* team */

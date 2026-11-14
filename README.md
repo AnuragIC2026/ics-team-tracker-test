@@ -14,11 +14,13 @@ The production app (Node + MySQL, server-checked login and roles, email OTP, not
 
 **Redo / reassign**: a project manager (within their team) or the admin can repost an unsatisfactory task to the same person or reassign it to someone else; it then stops carrying over for the first person.
 
+**Tasks**: planned tasks can be Urgent, High or Low (Urgent + High = Critical) and are listed in that order. Team members score tasks on collapsible cards, can add tasks for themselves, and mark backlog (carried-over) tasks Pending, In progress or Done.
+
 **Leave**: only the admin assigns leave: paid, unpaid or partial. On a partial-leave day the person can still log a little work; task self-scores and the day's score go up to 4.
 
 **Sign-in (temporary passwords)**
 - Admin: anurag.p@icsoln.com / Anurag123
-- Project manager: priyanshi@icsoln.com / Priyanshi123 (manages Praveen)
-- Team member: praveen@icsoln.com / Praveen123
+- Project manager: priyanshi@icsoln.com / Priyanshi123 (manages Praveen and Krisha)
+- Team members: praveen@icsoln.com / Praveen123, krisha@icsoln.com / Krisha123
 
 These passwords are placeholders for this build only. Don't reuse them anywhere.
