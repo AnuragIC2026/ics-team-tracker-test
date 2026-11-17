@@ -464,10 +464,10 @@ input,select,textarea{max-width:100%}
 #my-side .item{padding:8px 12px;gap:10px;align-items:center}
 #my-side .notice{padding:8px 10px;font-size:13px}
 @media (max-width:820px){.split{grid-template-columns:1fr}}
-#my-side .mstats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px!important}
-#my-side .mstats .num{font-size:24px!important}
-#my-side .mstats .small{font-size:12px;line-height:1.25}
-@media (max-width:820px){#my-side .mstats .num{font-size:28px!important}}
+#my-side .mstats,#person-side .mstats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px!important}
+#my-side .mstats .num,#person-side .mstats .num{font-size:24px!important}
+#my-side .mstats .small,#person-side .mstats .small{font-size:12px;line-height:1.25}
+@media (max-width:820px){#my-side .mstats .num,#person-side .mstats .num{font-size:28px!important}}
 .btn.danger{color:var(--coral-ink)}
 
 /* ===== ICS logo (green lockup with innovation.creation) ===== */
@@ -500,6 +500,29 @@ input,select,textarea{max-width:100%}
 .panel .theme-sw button:hover{color:var(--ink)}
 .panel .theme-sw button[aria-pressed="true"]{background:#00FFB3;color:#03241C}
 @media (max-width:640px){.panel .theme-sw button span{display:inline}}
+
+/* ===== person page ===== */
+.ledger th.name .nbtn{all:unset;display:block;cursor:pointer;border-radius:8px;margin:-4px;padding:4px}
+.ledger th.name .nbtn:hover .n{text-decoration:underline;text-underline-offset:3px}
+.ledger th.name .nbtn:focus-visible{outline:2px solid var(--mint-ink);outline-offset:2px}
+.person-head{display:grid;gap:12px;justify-items:start}
+.person-head h2{margin:0;font-size:24px;line-height:1.15}
+.pnav{gap:6px}
+.pnav .pdate{width:170px}
+.pstrip{display:grid;grid-template-columns:repeat(auto-fill,minmax(40px,1fr));gap:4px}
+.pday{display:grid;gap:1px;justify-items:center;padding:5px 2px;border-radius:8px;border:1px solid var(--line);background:var(--bg);color:var(--ink);cursor:pointer;font:500 12px/1.2 var(--f-body);min-height:40px}
+.pday .dn{font-size:11px;color:var(--muted)}
+.pday .ds{font-weight:700;font-size:13px;min-height:15px}
+.pday.k-scored{border-color:transparent}
+.pday.k-scored .dn{color:inherit;opacity:.75}
+.pday.k-miss .ds{color:var(--coral-ink)}
+.pday.k-leave{background:var(--violet-bg,var(--sunk));color:var(--violet-ink)}
+.pday.k-holiday{background:var(--pink-bg,var(--sunk))}
+.pday.k-weekoff .ds,.pday.k-future .ds{color:var(--muted);font-weight:500}
+.pday.k-pend{box-shadow:inset 0 0 0 1.5px var(--sky-ink)}
+.pday.sel{outline:2.5px solid var(--mint-ink);outline-offset:1px}
+@media (max-width:640px){.pnav .pdate{width:auto;flex:1 1 140px}.pstrip{grid-template-columns:repeat(7,minmax(0,1fr))}.person-head h2{font-size:20px}}
+.ro-tasks{margin:0;padding-left:18px;display:grid;gap:4px;font-size:14px}
 .site-foot{margin:8px 0 0;text-align:center;font-size:12px;color:var(--muted)}
 </style>
 
@@ -741,7 +764,7 @@ function roleLabel(uid){return S.members[uid]?.role==="pm"?"Project manager":"Te
 function syncSubs(){
   const want=new Set();
   const months=new Set([S.month,shiftMonth(S.month,-1),todayKey().slice(0,7),shiftMonth(todayKey().slice(0,7),-1)]);
-  for(const uid of activeIds())for(const kind of["entries","scores","plans","leaves"])for(const m of months)want.add(kind+"/"+uid+"/months/"+m);
+  for(const uid of new Set([...activeIds(),...(S.view==="person"&&S.person?[S.person]:[])]))for(const kind of["entries","scores","plans","leaves"])for(const m of months)want.add(kind+"/"+uid+"/months/"+m);
   for(const k of Object.keys(S.subs))if(!want.has(k)){S.subs[k]();delete S.subs[k]}
   for(const path of want)if(!S.subs[path]){
     const [kind,uid,,ym]=path.split("/");const store=kind==="entries"?S.entries:kind==="plans"?S.plans:kind==="leaves"?S.leaves:S.scores;
@@ -846,7 +869,7 @@ function renderHeader(){
   if(isMember())list.push(["my","My day"]);
   if(canManage()){list.push(["plan","Plan tasks"]);list.push(["review","Review",reviewQueue().length])}
   if(S.isAdmin){list.push(["hl","Holidays & leave"]);list.push(["team","Team",Object.keys(S.requests).filter(id=>!S.members[id]||S.members[id].status!=="active").length])}
-  if(!list.some(t=>t[0]===S.view)&&!(S.view==="settings"&&!S.preview))S.view="month";
+  if(!list.some(t=>t[0]===S.view)&&!((S.view==="settings"||S.view==="person")&&!S.preview))S.view="month";
   for(const[k,label,badge]of list)tabs.append(h("button",{"aria-current":String(S.view===k),onclick:()=>{S.view=k;S.drawer=null;render()}},label,badge?h("span",{class:"badge",text:badge}):null));
 }
 function isMember(){return S.members[S.me]?.status==="active"}
@@ -891,6 +914,50 @@ function settingsView(){
     h("p",{class:"small muted",style:"margin:0",text:"Saved on this device. All dates and times are shown in IST."}));
   return[h("div",{class:"bar"},h("h2",{text:"Settings"})),h("div",{class:"settings-grid"},form,h("div",{class:"stack"},acct,look))]}
 
+/* ---------- person page: one person's tasks, scores and comments for any day ---------- */
+function canOpenPerson(uid){return !!uid&&!!S.members[uid]&&(S.isAdmin||uid===S.me||manages(uid))}
+function openPerson(uid,key){S.person=uid;S.personDate=key||todayKey();S.view="person";S.drawer=null;const ym=S.personDate.slice(0,7);if(ym!==S.month){S.month=ym;syncSubs()}
+  try{history.replaceState(null,"","#person")}catch{}renderDrawer();render();try{window.scrollTo(0,0)}catch{}}
+function personView(){
+  const uid=S.person;
+  if(!canOpenPerson(uid)){S.view="month";return monthView()}
+  const key=S.personDate||todayKey(),ym=key.slice(0,7),d=Number(key.slice(8));
+  if(ym!==S.month){S.month=ym;syncSubs()}
+  const m=S.members[uid],gone=m.status!=="active";
+  const go=k=>{S.personDate=k;const y=k.slice(0,7);if(y!==S.month){S.month=y;syncSubs()}render()};
+  const goMonth=n=>{const y=shiftMonth(ym,n);go(y+"-"+pad(Math.min(d,daysIn(y))))};
+  const head=h("div",{class:"person-head"},
+    h("button",{class:"btn ghost sm",onclick:()=>{S.view=gone&&S.isAdmin?"team":"month";render()}},gone&&S.isAdmin?"← Team":"← Month ledger"),
+    h("div",{class:"bar",style:"gap:14px;flex-wrap:nowrap"},avatar(uid),h("div",{style:"min-width:0;flex:1"},h("h2",{text:nm(uid)+(uid===S.me?" (you)":"")}),
+      h("div",{class:"small muted",text:[m.title,roleLabel(uid),"Works "+wdLabel(uid),m.pm&&S.members[m.pm]?"Reports to "+nm(m.pm):""].filter(Boolean).join(" · ")})),
+      gone?h("span",{class:"chip coral",text:"Left the team"}):null));
+  const dateIn=h("input",{type:"date",id:"person-date",value:key,"aria-label":"Pick a day",onchange:e=>{if(e.target.value)go(e.target.value)}});
+  const nav=h("div",{class:"bar pnav"},
+    h("button",{class:"btn icon-btn","aria-label":"Previous month",title:"Previous month",onclick:()=>goMonth(-1)},"«"),
+    h("button",{class:"btn icon-btn","aria-label":"Previous day",title:"Previous day",onclick:()=>go(keyAdd(key,-1))},"‹"),
+    h("div",{class:"pdate"},dateIn),
+    h("button",{class:"btn icon-btn","aria-label":"Next day",title:"Next day",onclick:()=>go(keyAdd(key,1))},"›"),
+    h("button",{class:"btn icon-btn","aria-label":"Next month",title:"Next month",onclick:()=>goMonth(1)},"»"),
+    key!==todayKey()?h("button",{class:"btn ghost sm",onclick:()=>go(todayKey())},"Today"):null,
+    h("span",{class:"grow"}),h("span",{class:"eyebrow",text:monthName(ym)}));
+  const strip=h("div",{class:"pstrip",role:"group","aria-label":"Days in "+monthName(ym)});
+  for(let x=1;x<=daysIn(ym);x++){const i=dayInfo(uid,ym,x),sel=x===d;
+    const lab=i.kind==="leave"?(i.ltype==="partial"?"PT":i.ltype==="unpaid"?"UL":"PL"):i.kind==="holiday"?"H":i.kind==="weekoff"?"–":i.kind==="pend"?"…":i.kind==="today"?"due":i.score!=null?String(i.score):"";
+    strip.append(h("button",{type:"button",class:"pday k-"+i.kind+(sel?" sel":""),"aria-current":String(sel),"aria-label":fmtDay(ym,x)+(lab?": "+lab:""),style:i.score!=null&&i.kind==="scored"?heat(i.score):null,onclick:()=>go(ym+"-"+pad(x))},
+      h("span",{class:"dn",text:String(x)}),h("span",{class:"ds",text:lab})))}
+  const st=monthStats(uid,ym);
+  const kpi=(v,l)=>h("div",null,h("div",{class:"num",text:String(v)}),h("div",{class:"small muted",text:l}));
+  const side=h("div",{class:"panel stack"},h("div",{class:"eyebrow",text:monthName(ym)}),
+    h("div",{class:"bar mstats",style:"gap:28px"},kpi(st.total,"points"),kpi(st.avg.toFixed(1),"avg / day"),kpi(st.leaves,"leave days"),kpi(st.miss,"not filled")),
+    st.pend?h("p",{class:"small muted",style:"margin:0",text:st.pend+" day"+(st.pend===1?"":"s")+" awaiting review"}):null);
+  const own=uid===S.me&&isMember();
+  const detail=h("div",{class:"panel stack"},h("div",{class:"bar"},h("h3",{style:"margin:0",text:fmtDay(ym,d)}),h("span",{class:"grow"}),
+      canManage()&&manages(uid)&&!gone&&canPlanDay(key)?h("button",{class:"btn ghost sm",onclick:()=>{S.planDate=key;S.view="plan";render()}},"Plan this day"):null,
+      own&&canEditDay(S.me,key)?h("button",{class:"btn sm",onclick:()=>{S.draftDate=key;S.draft=null;S.view="my";render()}},"Fill or edit in My day"):null),
+    ...dayDetail(uid,ym,d,()=>render()));
+  return[h("div",{class:"panel stack"},head,nav,strip),h("div",{class:"split"},detail,h("div",{id:"person-side",class:"stack"},side))]}
+function lastWorkKey(uid){let best="";for(const[k,v]of Object.entries(S.entries))if(k.startsWith(uid+"|"))for(const dd of Object.keys(v?.days||{})){const key=k.split("|")[1]+"-"+dd;if(key>best)best=key}return best||todayKey()}
+function canPlanDay(key){return S.isAdmin||key>=todayKey()}
 function viewNodes(){
   if(S.locked&&!S.fatal)return[testLoginCard()];
   if(S.fatal)return[h("div",{class:"panel empty"},h("h3",null,"Sign in to use the tracker"),h("p",{class:"muted"},"Open this page signed in to claude.ai with the account your admin shared it with. Your name links your work log to you; your email is never shown to the team."))];
@@ -909,6 +976,7 @@ function viewNodes(){
   if(S.view==="hl")out.push(...hlView());
   if(S.view==="team")out.push(...teamView());
   if(S.view==="settings")out.push(...settingsView());
+  if(S.view==="person")out.push(...personView());
   return out;
 }
 
@@ -947,6 +1015,7 @@ function monthView(){
   for(const uid of ids){
     const st=monthStats(uid,ym);
     const tr=h("tr",null,h("th",{class:"name",scope:"row"},h("div",{class:"nwrap"},avatar(uid),h("span",{class:"nm"},h("span",{class:"n",text:nm(uid)+(uid===S.me?" (you)":"")}),h("span",{class:"t",text:(S.members[uid].title||"")+(S.members[uid].role==="pm"?" · PM":"")}),h("span",{class:"t wd",text:wdLabel(uid)})))));
+    if(canOpenPerson(uid)){const th=tr.firstChild,nw=th.firstChild;th.append(h("button",{type:"button",class:"nbtn",title:"Open "+nm(uid)+"'s tasks",onclick:()=>openPerson(uid,ym===todayKey().slice(0,7)?todayKey():ym+"-01")},nw))}
     for(let d=1;d<=n;d++)tr.append(h("td",null,cellBtn(uid,ym,d)));
     tr.append(h("td",{class:"sum total"},st.total),h("td",{class:"sum"},st.avg.toFixed(1)),h("td",{class:"sum lv"},st.leaves?(st.paid+"/"+st.unpaid):"–"),h("td",{class:"sum star"},st.extra||"–"));
     body.append(tr)}
@@ -1010,9 +1079,15 @@ function cellBtn(uid,ym,d){
 /* drawer */
 function renderDrawer(){
   const o=document.getElementById("overlay");o.replaceChildren();if(!S.drawer)return;
-  const{uid,ym,d}=S.drawer;const i=dayInfo(uid,ym,d);const close=()=>{S.drawer=null;renderDrawer()};
+  const{uid,ym,d}=S.drawer;const close=()=>{S.drawer=null;renderDrawer()};
   const kids=[h("button",{class:"btn ghost sm close",onclick:close},"Close ✕"),
-    h("div",{class:"bar",style:"gap:12px"},avatar(uid),h("div",null,h("div",{class:"eyebrow",text:fmtDay(ym,d)}),h("h2",{style:"font-size:22px;margin-top:4px",text:nm(uid)})))];
+    h("div",{class:"bar",style:"gap:12px"},avatar(uid),h("div",null,h("div",{class:"eyebrow",text:fmtDay(ym,d)}),h("h2",{style:"font-size:22px;margin-top:4px",text:nm(uid)}))),
+    ...dayDetail(uid,ym,d,close)];
+  if(canOpenPerson(uid))kids.push(h("button",{class:"btn ghost sm",style:"justify-self:start",onclick:()=>openPerson(uid,ym+"-"+pad(d))},"Open "+firstName(uid)+"'s page →"));
+  o.append(h("div",{class:"scrim",onclick:close}),h("aside",{class:"drawer",role:"dialog","aria-label":"Day detail"},kids));
+}
+function dayDetail(uid,ym,d,close){
+  const i=dayInfo(uid,ym,d);const kids=[];
   const tag={sun:"Sunday — off",leave:"On leave",miss:"Not filled",pend:"Awaiting review",scored:i.auto?"No work given (auto 2)":"Scored",off:"Company holiday"}[i.kind]||"";
   kids.push(h("div",{class:"bar"},dayChip(i),h("span",{class:"grow"}),i.score!=null?h("div",{class:"scorebig"},i.score,h("small",{text:"points"})):null));
   const det=canSeeDetails(uid);
@@ -1045,10 +1120,10 @@ function renderDrawer(){
         h("p",{class:"small muted",style:"margin:0",text:un?"Unlocked: "+nm(uid)+" can fill or edit this day.":"Past days are locked for the team. Unlock to let "+nm(uid)+" submit a late update."}),
         h("div",null,h("button",{class:"btn",onclick:async()=>{await writeDays("plans/"+uid+"/months/"+ym,{[pad(d)]:{...(S.plans[uid+"|"+ym]?.days?.[pad(d)]||{}),unlocked:!un}});toast(un?"Locked again":"Unlocked for "+nm(uid));close()}},un?"Lock again":"Unlock this day"))))}
   }
-  if(i.partial)kids.splice(3,0,h("div",{class:"notice l",text:"Partial leave"+(i.lv?.reason?" ("+i.lv.reason+")":"")+". Any work logged scores up to "+PARTIAL_MAX+" points."}));
-  if(i.hol)kids.splice(3,0,h("div",{class:"notice h",text:"Holiday: "+(i.hol.reason||"Company holiday")}));
-  if(i.kind==="weekoff"||(i.off&&i.e))kids.splice(3,0,h("div",{class:"notice d",text:"Weekly off for "+nm(uid)+" ("+workdays(uid).slice().sort((a,b)=>((a+6)%7)-((b+6)%7)).map(n=>WD[n]).join(", ")+" are working days)"}));
-  o.append(h("div",{class:"scrim",onclick:close}),h("aside",{class:"drawer",role:"dialog","aria-label":"Day detail"},kids));
+  if(i.partial)kids.splice(1,0,h("div",{class:"notice l",text:"Partial leave"+(i.lv?.reason?" ("+i.lv.reason+")":"")+". Any work logged scores up to "+PARTIAL_MAX+" points."}));
+  if(i.hol)kids.splice(1,0,h("div",{class:"notice h",text:"Holiday: "+(i.hol.reason||"Company holiday")}));
+  if(i.kind==="weekoff"||(i.off&&i.e))kids.splice(1,0,h("div",{class:"notice d",text:"Weekly off for "+nm(uid)+" ("+workdays(uid).slice().sort((a,b)=>((a+6)%7)-((b+6)%7)).map(n=>WD[n]).join(", ")+" are working days)"}));
+  return kids;
 }
 function clamp(v){if(v===""||v==null)return null;const n=Math.round(Number(v));if(!isFinite(n))return null;return Math.max(0,Math.min(10,n))}
 async function saveScore(uid,ym,d,{final,reason,kind}){
@@ -1101,7 +1176,7 @@ function myView(){
   const scored=todays.filter(t=>{const v=taskVal(D.checks[t.k]);return v&&v.s!=null&&v.c.trim()}).length;
   const checklist=[h("div",{class:"tl-head"},h("span",{class:"eyebrow",text:"Your tasks"}),todays.length?h("span",{class:"chip "+(scored===todays.length?"ok":""),text:scored+"/"+todays.length+" done"}):null,h("span",{class:"grow"}),plan.length?toggleAll:null),
     todays.length?h("ul",{class:"tlist"},todays.map(card)):h("p",{class:"muted small",style:"margin:0",text:"No tasks assigned for this day. Add your own below, or describe your work in the daily update."}),
-    locked?null:addBox,
+    locked||date<todayKey()?null:addBox,
     backlog.length?[h("div",{class:"tl-head",style:"margin-top:8px"},h("span",{class:"eyebrow",text:"Backlog · "+backlog.length}),h("span",{class:"small muted",text:"Unfinished from earlier days. Set Done when finished; anything not done carries over."})),
       h("ul",{class:"tlist"},backlog.map(card))]:null].flat();
   const dateIn=h("input",{type:"date",id:"my-date",value:date,max:todayKey(),onchange:e=>{if(!e.target.value)return;S.draftDate=e.target.value;S.draft=null;
@@ -1240,12 +1315,12 @@ function statusList(plan,checks,ctx){const ul=h("ul",{class:"status-list"});
   return ul}
 function reassignTargets(uid){return managedIds().filter(id=>id!==uid&&S.members[id]?.status==="active")}
 function redoForm(uid,fromKey,t){
-  const id="rd-"+t.k;const di=h("input",{type:"date",id:id+"-d",value:redoDefault(uid,fromKey),"aria-label":"Repost on"});
+  const id="rd-"+t.k;const di=h("input",{type:"date",id:id+"-d",value:redoDefault(uid,fromKey),min:S.isAdmin?null:todayKey(),"aria-label":"Repost on"});
   const ni=h("input",{type:"text",id:id+"-n",placeholder:"What to fix (shown to "+nm(uid)+")","aria-label":"Note"});
   const others=reassignTargets(uid);
   const who=h("select",{id:id+"-u","aria-label":"Give this task to",onchange:()=>{di.value=redoDefault(who.value,fromKey);ni.placeholder=who.value===uid?"What to fix (shown to "+nm(uid)+")":"Note for "+nm(who.value)+" (optional)";go.textContent=who.value===uid?"Repost task":"Reassign task"}},
     h("option",{value:uid},nm(uid)+" again"),...others.map(o=>h("option",{value:o},nm(o))));
-  const go=h("button",{class:"btn primary sm",onclick:()=>{const k=di.value,to=who.value;if(!k)return toast("Pick a date");if(!isWorkDay(to,k))return toast(fmtKey(k)+" isn't a working day for "+nm(to));
+  const go=h("button",{class:"btn primary sm",onclick:()=>{const k=di.value,to=who.value;if(!k)return toast("Pick a date");if(!canPlanDay(k))return toast("Pick today or a later date. Only the admin can add tasks to past days.");if(!isWorkDay(to,k))return toast(fmtKey(k)+" isn't a working day for "+nm(to));
     if(to===uid)doRedo(uid,k,t.text,fromKey,ni.value.trim(),t.p);else doReassign(uid,to,k,t.text,fromKey,ni.value.trim(),t.p)}},"Repost task");
   return h("div",{class:"redo-form"},h("b",{class:"small",text:"Give to"}),others.length?who:h("span",{class:"small",text:nm(uid)}),di,ni,go,
     h("button",{class:"btn ghost sm",onclick:()=>{S.redoOpen=null;render()}},"Cancel"))}
@@ -1298,6 +1373,8 @@ function taskEditor(dk,uid,key){
     prioPicker(S.newPrio[dk],p=>{S.newPrio[dk]=p;render()},"Priority of the new task"),
     h("button",{type:"button",class:"btn sm",onclick:add},"Add")));
   return box}
+function readOnlyTasks(uid,key){const ts=savedTasks(uid,key);
+  return ts.length?h("ul",{class:"ro-tasks"},...ts.slice().sort((a,b)=>prioRank(a.p)-prioRank(b.p)).map(x=>h("li",null,prioBadge(x.p),x.p?" ":null,x.t))):h("p",{class:"small muted",style:"margin:0",text:"No tasks were assigned."})}
 function planChanged(dk,uid,key){const d=S.planDrafts[dk];if(!d)return false;const clean=a=>JSON.stringify(a.map(x=>[x.t.trim(),prioCode(x.p)]).filter(x=>x[0]));return clean(d)!==clean(savedTasks(uid,key))}
 function planPayload(list){const ts=[],prio={};for(const x of list){const t=x.t.trim().slice(0,300);if(!t||ts.includes(t))continue;ts.push(t);prio[tkey(t)]=prioCode(x.p)}return{tasks:ts.join("\n").slice(0,3000),prio}}
 function planText(uid,key){const[y,m,dd]=key.split("-");return S.plans[uid+"|"+y+"-"+m]?.days?.[dd]?.tasks||""}
@@ -1319,7 +1396,7 @@ function planView(){
   const cards=[];
   for(const uid of ids){
     const dk=key+"|"+uid;const saved=planText(uid,key);
-    const ta=taskEditor(dk,uid,key);
+    const ta=canPlanDay(key)?taskEditor(dk,uid,key):readOnlyTasks(uid,key);
     const rk=uid;
     const rt=h("textarea",{id:"routine-"+uid,style:"min-height:64px",placeholder:"e.g. Check client emails\nUpdate project tracker",oninput:e=>S.routineDrafts[rk]=e.target.value});rt.value=S.routineDrafts[rk]??(S.members[uid].routine||"");
     const entry=S.entries[uid+"|"+ym]?.days?.[key.slice(8)];
@@ -1348,6 +1425,7 @@ function planView(){
         for(const[m,patch]of Object.entries(byYm))await writeDays("plans/"+c.uid+"/months/"+m,patch);delete S.planDrafts[c.dk];n++}
       toast(n?"Plans saved"+(days.length>1?" for "+days.length+" days":""):"No changes to save")}
     catch(e){toast("Couldn't save plans ("+e.code+")")}finally{saveBtn.disabled=false}}},"Save plans");
+  if(!canPlanDay(key))return[head,h("div",{class:"notice lock",text:"This day is in the past, so its tasks are read-only. Only the admin can add or change tasks on past days."}),grid];
   return[head,h("div",{class:"notice d",text:"Tasks are listed by priority: Critical (Urgent + High), Urgent, High, normal, then Low. Unfinished tasks move to the team member's backlog on the next working day until they mark them Done."}),grid,h("div",{class:"bar"},saveBtn,copyBtn,h("label",{class:"check"},week,"Also apply to the rest of this week (to Saturday)"))];
 }
 
@@ -1414,10 +1492,11 @@ function teamView(){
   if(!mem.length)pl.append(h("p",{class:"muted",style:"margin:0",text:"No members yet."}));
   mp.append(pl);out.push(mp);
   const gone=Object.keys(S.members).filter(id=>S.members[id].status==="removed").sort((a,b)=>nm(a).localeCompare(nm(b)));
-  if(gone.length){const rp=h("div",{class:"panel stack"},h("div",{class:"eyebrow",text:"Removed · "+gone.length}),
-    h("p",{class:"small muted",style:"margin:0",text:"Removed people can't sign in and don't appear in the ledger. Restore brings them back with their history; Delete permanently erases them for good."}));
+  if(gone.length){const rp=h("div",{class:"panel stack"},h("div",{class:"eyebrow",text:"Former members · "+gone.length}),
+    h("p",{class:"small muted",style:"margin:0",text:"People who left can't sign in and don't appear in the ledger, but all their work is kept. Open View work to see their days, tasks and scores. Restore brings them back; Delete permanently erases them for good."}));
     for(const id of gone)rp.append(h("div",{class:"item",style:"align-items:center"},avatar(id),h("div",{style:"min-width:0"},h("b",{text:nm(id)}),h("div",{class:"small muted",text:(S.members[id].title||"")+(S.emails?.emails?.[id]?" · "+S.emails.emails[id]:"")})),
       h("div",{style:"display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end"},
+        h("button",{class:"btn primary sm",onclick:()=>openPerson(id,lastWorkKey(id))},"View work"),
         h("button",{class:"btn sm",onclick:async()=>{await S.db.doc("members/"+id).update({status:"active"});toast(nm(id)+" restored")}},"Restore"),
         h("button",{class:"btn ghost sm danger",onclick:async e=>{if(!e.target.dataset.armed){e.target.dataset.armed="1";e.target.textContent="Click again to delete "+firstName(id);setTimeout(()=>{if(e.target.isConnected){e.target.textContent="Delete permanently";delete e.target.dataset.armed}},5000);return}
           const n=nm(id);await S.db.doc("members/"+id).delete();const ref=S.db.doc("private/emails");const cur=await ref.get();if(cur.exists){const data=cur.data();if(data.emails){delete data.emails[id];await ref.set(data)}}
