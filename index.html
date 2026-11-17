@@ -523,6 +523,44 @@ input,select,textarea{max-width:100%}
 .pday.sel{outline:2.5px solid var(--mint-ink);outline-offset:1px}
 @media (max-width:640px){.pnav .pdate{width:auto;flex:1 1 140px}.pstrip{grid-template-columns:repeat(7,minmax(0,1fr))}.person-head h2{font-size:20px}}
 .ro-tasks{margin:0;padding-left:18px;display:grid;gap:4px;font-size:14px}
+
+/* ===== Option A: team list + one person ===== */
+.focus{display:grid;grid-template-columns:320px minmax(0,1fr);gap:20px;align-items:start}
+.tlistp{position:sticky;top:12px;max-height:calc(100vh - 24px);display:flex;flex-direction:column;padding:0;overflow:hidden}
+.tl-top{padding:14px 14px 8px;display:grid;gap:10px;border-bottom:1px solid var(--line)}
+.tl-top input{width:100%;box-sizing:border-box}
+.tl-filters{display:flex;gap:6px;flex-wrap:wrap}
+.fchip{font:600 12px/1 var(--f-body);padding:6px 10px;border-radius:99px;border:1px solid var(--line);background:var(--bg);color:var(--muted);cursor:pointer}
+.fchip.on,.fchip[aria-pressed="true"]{background:var(--ink);border-color:var(--ink);color:var(--surface)}
+.tl-scroll{overflow-y:auto;min-height:0;padding:4px 6px 10px;overscroll-behavior:contain;scrollbar-width:thin}
+.tl-grp{font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);font-weight:600;padding:12px 8px 6px;position:sticky;top:0;background:var(--surface);z-index:1}
+.prow{display:flex;align-items:center;gap:10px;width:100%;padding:8px 10px;border-radius:10px;border:1px solid transparent;background:transparent;text-align:left;font:inherit;color:inherit;cursor:pointer;min-height:48px}
+.prow:hover{background:var(--bg)}
+.prow.sel{background:color-mix(in srgb,var(--mint) 14%,var(--surface));border-color:var(--mint-ink)}
+.prow .av{width:30px;height:30px;font-size:12px;flex:none}
+.prow .pwho{flex:1;min-width:0;display:grid}
+.prow .pn{font-size:14px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.prow .pmeta{font-size:12px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.prow .chip,.prow .prio{flex:none}
+.fpanel{display:grid;gap:14px;min-width:0}
+.fpanel .plan-grid{display:block}
+.fpanel .pcard{border:none;box-shadow:none;padding:0;background:transparent}
+.fnav{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.fnav .fback{display:none}
+.fhead{display:flex;align-items:center;gap:12px}
+.fhead h3{margin:0;font-size:20px}
+.fbar{display:flex;gap:10px;flex-wrap:wrap;align-items:center;padding-top:12px;border-top:1px solid var(--line)}
+.waiting{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+@media (max-width:820px){
+  .focus{grid-template-columns:1fr}
+  .tlistp{position:static;max-height:none}
+  .tl-scroll{max-height:none;overflow:visible}
+  .focus.show-person .tlistp{display:none}
+  .focus:not(.show-person) .fpanel{display:none}
+  .fnav .fback{display:inline-flex}
+}
+.tl-top input{border:1px solid var(--line);border-radius:10px;padding:9px 12px;font:14px var(--f-body);background:var(--surface);color:var(--ink);min-height:40px}
+.tl-top input:focus{outline:2px solid var(--mint-ink);outline-offset:1px}
 .site-foot{margin:8px 0 0;text-align:center;font-size:12px;color:var(--muted)}
 </style>
 
@@ -827,7 +865,7 @@ async function render(){
   S.P=P;
   renderHeader();
   const main=document.getElementById("main");
-  const active=document.activeElement;const keepForm=(S.locked||S.view!=="month")&&main.contains(active)&&/TEXTAREA|INPUT/.test(active.tagName)&&active.type!=="date";
+  const active=document.activeElement;const keepForm=(S.locked||S.view!=="month")&&main.contains(active)&&/TEXTAREA|INPUT/.test(active.tagName)&&active.type!=="date"&&!active.closest(".tl-top");
   if(keepForm){S.pendingRender=true;if(S.view==="my")renderMyHistory();return}
   S.pendingRender=false;
   main.replaceChildren(...viewNodes());
@@ -1254,23 +1292,34 @@ function reviewView(){
     S.busy?"Claude is reading…":unscored.length?"Ask Claude to score "+Math.min(12,unscored.length)+(unscored.length>12?" of "+unscored.length:""):"All entries have suggestions");
   const withAI=q.filter(x=>x.i.sc?.ai!=null&&!(x.i.e.at>(x.i.sc?.aiAt||0)));
   const bulk=withAI.length>1?h("button",{class:"btn",disabled:S.busy,onclick:async()=>{for(const x of withAI){const v=clamp(S.overrides[x.id]??x.i.sc.ai);await saveScore(x.uid,x.ym,x.d,{final:v,reason:x.i.sc.reason,kind:"scored"})}toast("Approved "+withAI.length+" scores")}},"Approve all "+withAI.length+" suggestions"):null;
-  const head=h("div",{class:"bar"},h("div",null,h("h2",{text:"Review · "+monthName(S.month)}),h("p",{class:"muted small",style:"margin:4px 0 0",text:q.length+" day"+(q.length===1?"":"s")+" waiting. Leave, holidays, weekly offs and no-work days score automatically."})),h("span",{class:"grow"}),bulk,aiBtn);
-  const out=[head,dailyReport()];
+  // the day being reviewed: default to the latest day with something waiting, else yesterday
+  if(!S.revDate){S.revDate=q.length?q[0].ym+"-"+pad(q[0].d):keyAdd(todayKey(),-1)}
+  const key=S.revDate,ym=key.slice(0,7),d=Number(key.slice(8));if(ym!==S.month){S.month=ym;syncSubs()}
+  const goDay=k=>{S.revDate=k;S.mob.review=false;render()};
+  const dateIn=h("input",{type:"date",id:"review-date",value:key,max:todayKey(),"aria-label":"Day to review",onchange:e=>{if(e.target.value)goDay(e.target.value)}});
+  const head=h("div",{class:"bar"},h("h2",{text:"Review"}),h("span",{class:"grow"}),
+    h("button",{class:"btn icon-btn","aria-label":"Previous day",onclick:()=>goDay(keyAdd(key,-1))},"‹"),h("div",{style:"width:170px"},dateIn),
+    h("button",{class:"btn icon-btn","aria-label":"Next day",disabled:key>=todayKey()||null,onclick:()=>goDay(keyAdd(key,1))},"›"),bulk,aiBtn);
+  const waiting={};for(const x of q){const k=x.ym+"-"+pad(x.d);if(k!==key)waiting[k]=(waiting[k]||0)+1}
+  const wk=Object.keys(waiting).sort().reverse();
+  const out=[head];
+  if(wk.length)out.push(h("div",{class:"waiting"},h("span",{class:"small muted",text:"Other days waiting:"}),...wk.slice(0,8).map(k=>h("button",{type:"button",class:"fchip",onclick:()=>goDay(k)},fmtDay(k.slice(0,7),Number(k.slice(8)))+" · "+waiting[k])),wk.length>8?h("span",{class:"small muted",text:"+"+(wk.length-8)+" more"}):null));
   if(!S.sample)out.push(h("div",{class:"note warn",text:"Claude scoring isn't available in this view. You can still score entries by hand."}));
-  if(!q.length){out.push(h("div",{class:"panel empty"},h("h3",{text:"Nothing to review"}),h("p",{class:"muted",text:"New work logs for "+monthName(S.month)+" will appear here."}),rubricBlock()));return out}
-  for(const x of q){
-    const sc=x.i.sc,stale=sc?.ai!=null&&x.i.e.at>(sc.aiAt||0);
-    const inp=h("input",{type:"number",min:"0",max:"10",id:"ov-"+x.id.replace(/\|/g,"-"),value:S.overrides[x.id]??(sc?.ai??""),oninput:e=>S.overrides[x.id]=e.target.value});
-    out.push(h("div",{class:"rcard"},
-      h("div",{class:"l"},h("div",{class:"bar",style:"gap:8px"},avatar(x.uid),h("h3",{text:nm(x.uid)}),h("span",{class:"muted small",text:"· "+fmtDay(x.ym,x.d)}),stale?h("span",{class:"chip warn",text:"Edited after scoring"}):null),
-        (()=>{const pl=planFor(x.uid,x.ym,x.d);return pl.length?h("div",null,h("span",{class:"eyebrow",text:"Assigned tasks"}),statusList(pl,x.i.e.checks,{uid:x.uid,key:x.ym+"-"+pad(x.d)})):null})(),
-        x.i.e.done?h("div",null,h("span",{class:"eyebrow",text:planFor(x.uid,x.ym,x.d).length?"Overall notes":"Daily update"}),h("p",{class:"txt",text:x.i.e.done})):null,
-        x.i.e.tasks?h("div",null,h("span",{class:"eyebrow",text:"Other work"}),h("p",{class:"txt",text:x.i.e.tasks})):null),
-      h("div",{class:"r"},
-        sc?.ai!=null?h("div",{class:"ai"},h("span",{class:"eyebrow",text:"Claude suggests"}),h("div",null,h("b",{text:sc.ai})," / 10"),h("div",{class:"muted",text:sc.reason||""})):h("div",{class:"ai muted",text:"No suggestion yet."}),
-        h("div",{class:"score-in"},inp,h("button",{class:"btn primary sm",onclick:async()=>{const v=clamp(inp.value);if(v==null)return toast("Enter a score from 0 to 10");
-          await saveScore(x.uid,x.ym,x.d,{final:v,reason:sc?.reason||"",kind:"scored"});delete S.overrides[x.id];toast("Approved "+v+" for "+nm(x.uid))}},"Approve")))));
-  }
+  const ids=managedIds();
+  if(!ids.length){out.push(h("div",{class:"panel empty"},h("h3",{text:"No team members yet"}),h("p",{class:"muted",text:"People assigned to you will appear here."})));return out}
+  S.tf=S.tf||{};if(S.tf.review==null)S.tf.review=ids.some(id=>reviewStatus(id,key).flags.need)?"need":"all";
+  out.push(focusLayout("review",ids,uid=>reviewStatus(uid,key),[["need","Needs review","Nothing left to review for this day."],["done","Approved","Nothing approved yet for this day."],["miss","Not filled","Everyone filled this day."],["all","All"]],(uid,goNext)=>{
+    const i=dayInfo(uid,ym,d);
+    const head=h("div",{class:"fhead"},avatar(uid),h("div",{style:"min-width:0;flex:1"},h("h3",{text:nm(uid)+" · "+fmtDay(ym,d)}),h("div",{class:"small muted",text:reviewStatus(uid,key).meta||roleLabel(uid)})),
+      h("button",{type:"button",class:"btn ghost sm",onclick:()=>openPerson(uid,key)},"Open page"));
+    const nodes=[head,...dayDetail(uid,ym,d,()=>render())];
+    if(i.kind==="pend"&&manages(uid))nodes.push(h("div",{class:"fbar"},h("button",{class:"btn primary",onclick:async()=>{const el=document.getElementById("drawer-score");const v=clamp(el?.value);
+      if(v==null)return toast("Enter a score from 0 to 10");const note=document.getElementById("drawer-note")?.value.trim();
+      await saveScore(uid,ym,d,{final:v,reason:note||i.sc?.reason||"",kind:"scored"});toast("Approved "+v+" for "+nm(uid));
+      const order=teamGroups(ids).flatMap(g=>g.ids),ix=order.indexOf(uid),nx=[...order.slice(ix+1),...order.slice(0,ix)].find(id=>reviewStatus(id,key).flags.need);
+      if(nx){S.sel.review=nx;render()}else toast("Everyone for "+fmtDay(ym,d)+" is reviewed")}},"Approve & next →")));
+    return nodes}));
+  out.push(dailyReport());
   return out;
 }
 const RUBRIC_PROMPT=`You score daily work logs for IC Solutions, a web development and digital marketing agency. Score each entry as an integer from 0 to 10.
@@ -1375,6 +1424,70 @@ function taskEditor(dk,uid,key){
   return box}
 function readOnlyTasks(uid,key){const ts=savedTasks(uid,key);
   return ts.length?h("ul",{class:"ro-tasks"},...ts.slice().sort((a,b)=>prioRank(a.p)-prioRank(b.p)).map(x=>h("li",null,prioBadge(x.p),x.p?" ":null,x.t))):h("p",{class:"small muted",style:"margin:0",text:"No tasks were assigned."})}
+/* ---------- Option A layout: grouped team list (scrolls on its own) + one person at a time ---------- */
+function teamGroups(ids){const by={};
+  for(const id of ids){const m=S.members[id]||{};const k=m.role==="pm"?"~pm":(m.pm&&S.members[m.pm]?.status==="active"?m.pm:"~admin");(by[k]=by[k]||[]).push(id)}
+  const out=[];
+  for(const k of Object.keys(by).filter(k=>!k.startsWith("~")).sort((a,b)=>nm(a).localeCompare(nm(b))))out.push({label:k===S.me?"Your team":firstName(k)+"'s team",ids:by[k]});
+  if(by["~admin"])out.push({label:"Reports to admin",ids:by["~admin"]});
+  if(by["~pm"])out.push({label:"Project managers",ids:by["~pm"]});
+  for(const g of out)g.ids.sort((a,b)=>nm(a).localeCompare(nm(b)));
+  return out}
+function pickPerson(view,ids,st){const F=focusState(view);if(F.sel&&ids.includes(F.sel))return F.sel;const order=teamGroups(ids).flatMap(g=>g.ids);const id=order.find(x=>st(x).flags?.first)||order[0];S.sel[view]=id;return id}
+function focusState(view){S.sel=S.sel||{};S.tq=S.tq||{};S.tf=S.tf||{};S.mob=S.mob||{};return{sel:S.sel[view],q:S.tq[view]||"",f:S.tf[view]||"all"}}
+/* view: "plan"|"review"; ids: people; st(uid)->{meta,chip:[cls,txt]|null,prio:[cls,txt]|null,flags:{}}; filters:[[key,label,flag]] */
+function focusLayout(view,ids,st,filters,panel){
+  const F=focusState(view),groups=teamGroups(ids),info={};for(const id of ids)info[id]=st(id);
+  const q=F.q.trim().toLowerCase();
+  const pass=id=>(!q||nm(id).toLowerCase().includes(q)||(S.members[id].title||"").toLowerCase().includes(q))&&(F.f==="all"||info[id].flags?.[F.f]);
+  const order=groups.flatMap(g=>g.ids).filter(pass);
+  let sel=F.sel&&ids.includes(F.sel)?F.sel:(order.find(id=>info[id].flags?.first)||order[0]||groups.flatMap(g=>g.ids)[0]);
+  S.sel[view]=sel;
+  const go=id=>{S.sel[view]=id;S.mob[view]=true;blurNow();render();try{const p=document.querySelector(".fpanel");if(p&&p.getBoundingClientRect().top<0)p.scrollIntoView({block:"start"})}catch{}};
+  const list=h("div",{class:"tl-scroll"});
+  for(const g of groups){const vis=g.ids.filter(pass);if(!vis.length)continue;
+    list.append(h("div",{class:"tl-grp",text:g.label+" · "+g.ids.length}));
+    for(const id of vis){const s=info[id];
+      list.append(h("button",{type:"button",class:"prow"+(id===sel?" sel":""),"aria-current":id===sel?"true":null,onclick:()=>go(id)},avatar(id),
+        h("span",{class:"pwho"},h("span",{class:"pn",text:nm(id)+(id===S.me?" (you)":"")}),h("span",{class:"pmeta",text:s.meta||""})),
+        s.prio?h("span",{class:"prio "+s.prio[0],text:s.prio[1]}):null,s.chip?h("span",{class:"chip "+s.chip[0],text:s.chip[1]}):null))}}
+  if(!order.length)list.append(h("p",{class:"small muted",style:"padding:8px 14px;margin:0",text:!q&&filters.find(x=>x[0]===F.f)?.[2]||"Nobody matches. Clear the search or filter."}));
+  const search=h("input",{type:"search",id:view+"-search",value:F.q,placeholder:"Search "+ids.length+" people","aria-label":"Search team",oninput:e=>{S.tq[view]=e.target.value;const pos=e.target.selectionStart;render();setTimeout(()=>{const el=document.getElementById(view+"-search");if(el&&document.activeElement!==el){el.focus();try{el.setSelectionRange(pos,pos)}catch{}}},30)}});
+  const chips=h("div",{class:"tl-filters",role:"group","aria-label":"Filter"},...filters.map(([k,label])=>{const n=k==="all"?ids.length:ids.filter(id=>info[id].flags?.[k]).length;
+    return h("button",{type:"button",class:"fchip"+(F.f===k?" on":""),"aria-pressed":String(F.f===k),onclick:()=>{S.tf[view]=k;render()}},label+" "+n)}));
+  const side=h("aside",{class:"panel tlistp","aria-label":"Team"},h("div",{class:"tl-top"},search,chips),list);
+  const idx=order.indexOf(sel),prev=idx>0?order[idx-1]:null,next=idx>=0&&idx<order.length-1?order[idx+1]:null;
+  const nav=h("div",{class:"fnav"},
+    h("button",{type:"button",class:"btn ghost sm fback",onclick:()=>{S.mob[view]=false;render();try{window.scrollTo(0,0)}catch{}}},"‹ Team"),
+    h("span",{class:"grow"}),
+    idx>=0?h("span",{class:"small muted",text:(idx+1)+" of "+order.length}):null,
+    h("button",{type:"button",class:"btn sm","aria-label":"Previous person",disabled:!prev||null,onclick:()=>prev&&go(prev)},"‹ Prev"),
+    h("button",{type:"button",class:"btn sm","aria-label":"Next person",disabled:!next||null,onclick:()=>next&&go(next)},"Next ›"));
+  const goNext=()=>{if(next)go(next);else toast("That was the last person in this list")};
+  const body=sel?panel(sel,goNext):[h("p",{class:"muted",text:"Pick someone from the list."})];
+  return h("div",{class:"focus"+(S.mob[view]?" show-person":"")},side,h("section",{class:"panel fpanel"},nav,...body))}
+function planStatus(uid,key){const ym=key.slice(0,7),d=Number(key.slice(8));
+  const unsaved=planChanged(key+"|"+uid,uid,key);
+  if(!isWorkDay(uid,key)){const lv=leaveOn(uid,ym,d),hol=holidayOn(uid,ym,d);
+    return{meta:lv?leaveLabel(lv.type):hol?"Holiday":"Weekly off",chip:lv?["violet","Leave"]:hol?["pink","Holiday"]:["","Off"],flags:{}}}
+  const pl=planFor(uid,ym,d),mine=pl.filter(t=>t.src==="assigned"||t.src==="redo"||t.src==="self"),back=pl.filter(t=>t.src==="carried");
+  const crit=pl.filter(t=>t.p==="uh").length,urg=pl.filter(t=>t.p==="u").length;
+  return{meta:(mine.length?mine.length+" task"+(mine.length===1?"":"s"):back.length?"Backlog only":"No tasks yet")+(mine.length&&back.length?" · "+back.length+" backlog":""),
+    chip:unsaved?["gold","Unsaved"]:!mine.length?["coral","Not planned"]:null,prio:crit?["crit",crit+" critical"]:urg?["urg",urg+" urgent"]:null,
+    flags:{notplanned:!mine.length,critical:crit>0,first:!mine.length}}}
+function reviewStatus(uid,key){const ym=key.slice(0,7),d=Number(key.slice(8)),i=dayInfo(uid,ym,d);
+  const time=i.e?.at?new Date(i.e.at).toLocaleTimeString("en-IN",{timeZone:"Asia/Kolkata",hour:"numeric",minute:"2-digit"}):"";
+  const pl=i.e?planFor(uid,ym,d).filter(t=>t.src!=="carried"):[];const done=pl.filter(t=>{const v=taskVal(i.e?.checks?.[t.k]);return v&&v.s!=null&&v.s>=taskMax(uid,ym,d)}).length;
+  const sub=time?"Submitted "+time+(pl.length?" · "+done+"/"+pl.length+" done":""):"";
+  if(i.kind==="pend"){const stale=i.sc?.ai!=null&&i.e.at>(i.sc.aiAt||0);
+    return{meta:(i.offday?"Worked on "+i.offday+" · ":"")+sub,chip:["gold",i.sc?.ai!=null&&!stale?"Claude: "+i.sc.ai:"Needs score"],flags:{need:true,first:true}}}
+  if(i.kind==="scored")return{meta:i.auto?"No work given":(sub||"Approved"),chip:[i.auto?"":"ok",String(i.score)],flags:{done:true}}
+  if(i.kind==="miss")return{meta:"Locked at 8 am",chip:["coral","Not filled"],flags:{miss:true}}
+  if(i.kind==="today")return{meta:i.grace?"Open until 8 am":"Not submitted yet",chip:["","Due"],flags:{}}
+  if(i.kind==="leave")return{meta:leaveLabel(i.ltype),chip:["violet","Leave"],flags:{}}
+  if(i.kind==="holiday")return{meta:"Holiday",chip:["pink","Holiday"],flags:{}}
+  if(i.kind==="weekoff")return{meta:"Weekly off",chip:["","Off"],flags:{}}
+  return{meta:"",chip:null,flags:{}}}
 function planChanged(dk,uid,key){const d=S.planDrafts[dk];if(!d)return false;const clean=a=>JSON.stringify(a.map(x=>[x.t.trim(),prioCode(x.p)]).filter(x=>x[0]));return clean(d)!==clean(savedTasks(uid,key))}
 function planPayload(list){const ts=[],prio={};for(const x of list){const t=x.t.trim().slice(0,300);if(!t||ts.includes(t))continue;ts.push(t);prio[tkey(t)]=prioCode(x.p)}return{tasks:ts.join("\n").slice(0,3000),prio}}
 function planText(uid,key){const[y,m,dd]=key.split("-");return S.plans[uid+"|"+y+"-"+m]?.days?.[dd]?.tasks||""}
@@ -1385,7 +1498,7 @@ function planView(){
   const ids=managedIds().sort((a,b)=>nm(a).localeCompare(nm(b)));
   const dateIn=h("input",{type:"date",id:"plan-date",value:key,onchange:e=>{if(!e.target.value)return;S.planDate=e.target.value;render()}});
   const head=h("div",{class:"bar"},
-    h("div",null,h("h2",{text:"Plan tasks"}),h("p",{class:"muted small",style:"margin:4px 0 0",text:"Assign each person's tasks for a day. Daily routine tasks are added to every working day automatically."})),
+    h("div",null,h("h2",{text:"Plan tasks"}),h("p",{class:"muted small",style:"margin:4px 0 0",text:"Pick a person on the left, plan their day, then Save & next. Daily routine tasks are added automatically."})),
     h("span",{class:"grow"}),
     h("button",{class:"btn icon-btn","aria-label":"Previous working day",onclick:()=>{S.planDate=prevWorkday(key);render()}},"‹"),
     h("div",{style:"width:170px"},dateIn),
@@ -1394,7 +1507,8 @@ function planView(){
   const week=h("input",{type:"checkbox",id:"plan-week",checked:S.planWeek||null,onchange:e=>S.planWeek=e.target.checked});
   const grid=h("div",{class:"plan-grid"});
   const cards=[];
-  for(const uid of ids){
+  const sel0=pickPerson("plan",ids,uid=>planStatus(uid,key));
+  for(const uid of ids.filter(id=>id===(ids.includes(sel0)?sel0:null))){
     const dk=key+"|"+uid;const saved=planText(uid,key);
     const ta=canPlanDay(key)?taskEditor(dk,uid,key):readOnlyTasks(uid,key);
     const rk=uid;
@@ -1412,7 +1526,7 @@ function planView(){
         h("div",{class:"field",style:"margin-top:8px"},h("label",{for:"routine-"+uid,class:"small",text:"Daily routine · repeats every working day"}),rt))));
   }
   const copyBtn=h("button",{class:"btn",onclick:()=>{const pk=prevWorkday(key);let n=0;for(const c of cards){const t=savedTasks(c.uid,pk);if(t.length&&!(S.planDrafts[c.dk]||[]).some(x=>x.t.trim())){S.planDrafts[c.dk]=t;n++}}toast(n?"Copied "+n+" plan"+(n===1?"":"s")+" from "+pk:"Nothing to copy from the previous working day");render()}},"Copy previous day");
-  const saveBtn=h("button",{class:"btn primary",onclick:async()=>{
+  const doSave=async()=>{
     saveBtn.disabled=true;const days=[key];
     if(S.planWeek){let k=key;while(new Date(k+"T00:00:00").getDay()!==6){k=nextWorkday(k);days.push(k)}}
     try{let n=0;
@@ -1424,9 +1538,14 @@ function planView(){
         const byYm={};for(const k of days){(byYm[k.slice(0,7)]=byYm[k.slice(0,7)]||{})[k.slice(8)]={tasks:pl.tasks,prio:pl.prio,by:S.me,at:Date.now()}}
         for(const[m,patch]of Object.entries(byYm))await writeDays("plans/"+c.uid+"/months/"+m,patch);delete S.planDrafts[c.dk];n++}
       toast(n?"Plans saved"+(days.length>1?" for "+days.length+" days":""):"No changes to save")}
-    catch(e){toast("Couldn't save plans ("+e.code+")")}finally{saveBtn.disabled=false}}},"Save plans");
-  if(!canPlanDay(key))return[head,h("div",{class:"notice lock",text:"This day is in the past, so its tasks are read-only. Only the admin can add or change tasks on past days."}),grid];
-  return[head,h("div",{class:"notice d",text:"Tasks are listed by priority: Critical (Urgent + High), Urgent, High, normal, then Low. Unfinished tasks move to the team member's backlog on the next working day until they mark them Done."}),grid,h("div",{class:"bar"},saveBtn,copyBtn,h("label",{class:"check"},week,"Also apply to the rest of this week (to Saturday)"))];
+    catch(e){toast("Couldn't save plans ("+e.code+")")}finally{saveBtn.disabled=false}};const saveBtn=h("button",{class:"btn",onclick:doSave},"Save");
+  const pickedCard=()=>{const c=grid.firstChild;return c?[c]:[]};
+  const layout=(extra)=>focusLayout("plan",ids,uid=>planStatus(uid,key),[["all","All"],["notplanned","Not planned","Everyone has tasks for this day."],["critical","Has critical","No critical tasks for this day."]],(uid,goNext)=>{
+    if(!cards.some(c=>c.uid===uid))return[h("p",{class:"muted",text:"Loading…"})];
+    return[...pickedCard(),...extra(goNext)]});
+  if(!canPlanDay(key))return[head,h("div",{class:"notice lock",text:"This day is in the past, so its tasks are read-only. Only the admin can add or change tasks on past days."}),layout(()=>[])];
+  return[head,layout(goNext=>[h("div",{class:"fbar"},h("button",{class:"btn primary",onclick:async()=>{await doSave();goNext()}},"Save & next person →"),saveBtn,copyBtn,h("label",{class:"check"},week,"Also apply to the rest of this week")),
+    h("p",{class:"small muted",style:"margin:0",text:"Tasks are listed by priority: Critical (Urgent + High), Urgent, High, normal, then Low. Unfinished tasks move to the backlog on the next working day. Unsaved changes are kept when you switch person."})])];
 }
 
 /* team */

@@ -18,6 +18,8 @@ The production app (Node + MySQL, server-checked login and roles, email OTP, not
 
 **Team**: the admin adds people in the Team tab (they sign in with their work email and FirstName123), removes them (history kept, can be restored) or deletes them permanently.
 
+**Plan tasks and Review** show a scrollable team list on the left (grouped by project manager, with search and filters) and one person at a time on the right, with Save & next / Approve & next.
+
 **Past days** are read-only: only the admin can add or change tasks on them. **Click a name** in the Month ledger to open that person's day-by-day page (admin: anyone; project manager: their team and themselves; team member: only themselves). People who leave move to **Former members** in Team, with their work kept.
 
 **Leave**: only the admin assigns leave: paid, unpaid or partial. On a partial-leave day the person can still log a little work; task self-scores and the day's score go up to 4.
