@@ -484,6 +484,22 @@ input,select,textarea{max-width:100%}
   .brand h1{font-size:20px}
   .login-brand img{height:80px}
 }
+
+/* ===== settings ===== */
+.settings-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(340px,100%),1fr));gap:18px;align-items:start}
+.settings-grid form input[type=password],.settings-grid form input[type=text]{width:100%}
+.kvs{display:grid;gap:8px}
+.kv{display:grid;grid-template-columns:120px minmax(0,1fr);gap:10px;font-size:14px}
+.kv .k{color:var(--muted)}.kv .v{overflow-wrap:anywhere}
+.hbtn.gear{display:inline-flex;align-items:center;gap:6px}
+.hbtn.gear svg{width:16px;height:16px}
+.hbtn.gear[aria-current="true"]{background:rgba(0,255,179,.16);border-color:var(--mint)}
+@media (max-width:640px){.hbtn.gear .lbl{display:none}.hbtn.gear{padding:7px 9px}.kv{grid-template-columns:1fr;gap:2px}}
+.panel .theme-sw{background:var(--sunk);border-color:var(--line)}
+.panel .theme-sw button{color:var(--muted)}
+.panel .theme-sw button:hover{color:var(--ink)}
+.panel .theme-sw button[aria-pressed="true"]{background:#00FFB3;color:#03241C}
+@media (max-width:640px){.panel .theme-sw button span{display:inline}}
 .site-foot{margin:8px 0 0;text-align:center;font-size:12px;color:var(--muted)}
 </style>
 
@@ -636,6 +652,19 @@ const queues={};
 /* ---- Test sign-in: a preview of the hosted app's login page. It is not real security:
    this page's data is protected by claude.ai sharing, not by these passwords. ---- */
 const TEST_ADMIN={email:"anurag.p@icsoln.com",pw:"Anurag123"};
+/* Test site only: a changed password is kept (hashed) in this browser. The hosted version keeps it on the server. */
+const PW_KEY="ics-test-pw";
+function pwHash(p){let a=0x811c9dc5,b=5381;for(let r=0;r<3;r++)for(const c of "ics|"+r+"|"+p){a=Math.imul(a^c.charCodeAt(0),16777619)>>>0;b=((b<<5)+b+c.charCodeAt(0))>>>0}return a.toString(36)+b.toString(36)}
+function pwMap(){try{return JSON.parse(localStorage.getItem(PW_KEY)||"{}")}catch{return{}}}
+function pwOk(key,given,def){const m=pwMap();return m[key]?m[key]===pwHash(given):given===def}
+function myName(){return S.isAdmin&&!S.asUser?(S.P?.[S.me]?.name||"Anurag Patwary"):nm(S.me)}
+function myEmail(){return S.isAdmin&&!S.asUser?TEST_ADMIN.email:(S.emails?.emails?.[S.me]||firstName(S.me).toLowerCase()+"@icsoln.com")}
+function pwKey(){return S.isAdmin&&!S.asUser?"admin":S.me}
+function pwCurrentOptional(){return false}
+function pwHelpText(){return "Test site: your new password is saved in this browser only. Forgot it? Ask the admin to reset it in the Team tab."}
+async function savePassword(cur,next){const key=pwKey(),def=key==="admin"?TEST_ADMIN.pw:firstName(S.me)+"123";
+  if(!pwOk(key,cur,def))throw new Error("Current password is incorrect.");
+  const m=pwMap();m[key]=pwHash(next);try{localStorage.setItem(PW_KEY,JSON.stringify(m))}catch{throw new Error("This browser blocks saving; try another browser.")}}
 function firstName(uid){return (nm(uid)||"").trim().split(/\s+/)[0]}
 function restoreTestLogin(){
   let ses=null;try{ses=JSON.parse(sessionStorage.getItem("ics-test-login")||"null")}catch{}
@@ -646,11 +675,11 @@ function restoreTestLogin(){
 function testSignIn(email,pw){
   email=String(email||"").trim().toLowerCase();
   let ses=null;
-  if(email===TEST_ADMIN.email&&pw===TEST_ADMIN.pw)ses={role:"admin"};
+  if(email===TEST_ADMIN.email&&pwOk("admin",pw,TEST_ADMIN.pw))ses={role:"admin"};
   else{const [local,domain]=email.split("@");
     const byEmail=Object.entries(S.emails?.emails||{}).find(([id,em])=>em===email&&S.members[id]?.status==="active")?.[0];
     const uid=byEmail||(domain==="icsoln.com"?activeIds().find(id=>firstName(id).toLowerCase()===local&&!S.emails?.emails?.[id]||S.emails?.emails?.[id]===email):null);
-    if(uid&&pw===firstName(uid)+"123")ses={role:"employee",uid};}
+    if(uid&&pwOk(uid,pw,firstName(uid)+"123"))ses={role:"employee",uid};}
   if(!ses)return "Email or password is incorrect.";
   try{sessionStorage.setItem("ics-test-login",JSON.stringify(ses))}catch{}
   try{document.activeElement?.blur?.()}catch{}
@@ -683,7 +712,7 @@ function testLoginCard(){
     h("button",{class:"btn primary",type:"submit",style:"width:100%;padding:11px"},"Sign in"),
     h("div",{class:"login-alt"},h("span",{class:"muted small",text:"or"}),
       h("button",{type:"button",class:"btn",style:"width:100%",onclick:()=>{msg.textContent="Email codes aren't switched on yet. Please sign in with your password."}},"Sign in with an email code")),
-    h("p",{class:"small muted",style:"margin:0;text-align:center",text:"First time? Your password is your first name followed by 123, for example Praveen123."}),
+    h("p",{class:"small muted",style:"margin:0;text-align:center",text:"First time? Your password is your first name followed by 123, for example Praveen123. You can change it later in Settings."}),
     null);
   setTimeout(()=>{const a=document.activeElement;if(!a||a===document.body)(L.email?pass:email).focus()},30);
   return form;
@@ -795,6 +824,8 @@ function dayChip(i){
   if(i.bonus)return h("span",{class:"chip pink",text:"Worked on "+(i.hol?"holiday":"weekly off")});
   return h("span",{class:"chip "+(i.score>5?"x":"ok"),text:i.score>5?"★ Extraordinary":"Scored"})}
 function nm(id){return S.P?.[id]?.name||S.members[id]?.name||"Team member"}
+const GEAR='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33h0a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51h0a1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82v0a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>';
+function settingsBtn(){const b=h("button",{class:"btn sm hbtn gear","aria-current":String(S.view==="settings"),title:"Settings: your account and password",onclick:()=>{S.view="settings";S.drawer=null;try{history.replaceState(null,"","#settings")}catch{}render()}});b.innerHTML=GEAR;b.append(h("span",{class:"lbl",text:"Settings"}));return b}
 const SUN='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>';
 const MOON='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>';
 function curTheme(){const t=document.documentElement.getAttribute("data-theme");if(t==="dark"||t==="light")return t;try{return matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light"}catch{return"light"}}
@@ -809,16 +840,56 @@ function renderHeader(){
   else if(S.preview)who.append(h("span",null,nm(S.me),h("br"),h("span",{class:"small"},roleLabel(S.me)+" (preview)")),avatar(S.me));
   else if(S.me&&S.P?.[S.me]){who.append(h("span",null,S.P[S.me].name||"You",h("br"),h("span",{class:"small"},S.isAdmin?"Admin":isPM()?"Project manager":(isMember()?"Team member":"Not on team yet"))),h("img",{src:S.P[S.me].avatarUrl,alt:""}))}
   who.prepend(themeSwitch());
-  if(!S.preview)who.append(h("button",{class:"btn sm hbtn",onclick:testSignOut},"Sign out"));
+  if(!S.preview)who.append(settingsBtn(),h("button",{class:"btn sm hbtn",onclick:testSignOut},"Sign out"));
   const tabs=document.getElementById("tabs");tabs.replaceChildren();
   const list=[["month","Month ledger"]];
   if(isMember())list.push(["my","My day"]);
   if(canManage()){list.push(["plan","Plan tasks"]);list.push(["review","Review",reviewQueue().length])}
   if(S.isAdmin){list.push(["hl","Holidays & leave"]);list.push(["team","Team",Object.keys(S.requests).filter(id=>!S.members[id]||S.members[id].status!=="active").length])}
-  if(!list.some(t=>t[0]===S.view))S.view="month";
+  if(!list.some(t=>t[0]===S.view)&&!(S.view==="settings"&&!S.preview))S.view="month";
   for(const[k,label,badge]of list)tabs.append(h("button",{"aria-current":String(S.view===k),onclick:()=>{S.view=k;S.drawer=null;render()}},label,badge?h("span",{class:"badge",text:badge}):null));
 }
 function isMember(){return S.members[S.me]?.status==="active"}
+
+/* ---------- settings: account details and change password, for every role ---------- */
+function settingsView(){
+  const uid=S.me,m=S.members[uid]||{},me=S.meInfo||{};
+  const roleTxt=S.isAdmin?"Admin":isPM()?"Project manager":"Team member";
+  const days=(m.workdays||me.workdays||[]).slice().sort();
+  const pm=m.pm&&S.members[m.pm]?nm(m.pm):"";
+  const team=isPM()?managedIds().map(nm):[];
+  const row=(k,v)=>v?h("div",{class:"kv"},h("span",{class:"k",text:k}),h("span",{class:"v",text:v})):null;
+  const acct=h("div",{class:"panel stack"},h("div",{class:"eyebrow",text:"Your account"}),
+    h("div",{class:"item",style:"align-items:center"},avatar(uid),h("div",{style:"min-width:0"},h("b",{text:myName()}),h("div",{class:"small muted",text:roleTxt}))),
+    h("div",{class:"kvs"},row("Work email",myEmail()),row("Job title",m.title||me.title||""),row("Working days",days.length?days.map(d=>WD[d]).join(", "):""),
+      row("Reports to",!S.isAdmin&&!isPM()?(pm||"Admin"):""),row("Manages",team.length?team.join(", "):"")),
+    h("p",{class:"small muted",style:"margin:0",text:S.isAdmin?"You can change anyone's details in the Team tab.":"To change these details, ask your admin."}));
+  const P=S.pwForm=S.pwForm||{show:false};
+  const mk=(id,ac,lbl,hint)=>{const i=h("input",{type:P.show?"text":"password",id,autocomplete:ac,value:P[id]||"",oninput:e=>{P[id]=e.target.value}});return h("div",{class:"field"},h("label",{for:id,text:lbl}),i,hint?h("span",{class:"small muted",text:hint}):null)};
+  const msg=h("p",{class:"small",role:"alert",style:"margin:0;color:var(--coral-ink)"});
+  const btn=h("button",{class:"btn primary",type:"submit"},"Change password");
+  const form=h("form",{class:"panel stack",novalidate:true,onsubmit:async e=>{e.preventDefault();msg.textContent="";
+      const cur=P["set-cur"]||"",n1=P["set-new"]||"",n2=P["set-new2"]||"";
+      const otpOk=pwCurrentOptional();
+      if(!cur&&!otpOk)return msg.textContent="Enter your current password.";
+      if(n1.length<8)return msg.textContent="Use at least 8 characters for the new password.";
+      if(n1.toLowerCase()===(firstName(uid)+"123").toLowerCase())return msg.textContent="Choose something other than the default FirstName123 password.";
+      if(cur&&n1===cur)return msg.textContent="The new password is the same as the current one.";
+      if(n1!==n2)return msg.textContent="The two new passwords don't match.";
+      btn.disabled=true;
+      try{await savePassword(cur,n1);S.pwForm=null;blurNow();toast("Password changed. Use the new one next time you sign in.");render()}
+      catch(err){msg.textContent=err.message||"Couldn't change the password.";btn.disabled=false}}},
+    h("div",{class:"eyebrow",text:"Change password"}),
+    mk("set-cur","current-password","Current password"+(pwCurrentOptional()?" (optional: you signed in with an email code)":"")),
+    mk("set-new","new-password","New password","At least 8 characters, not your default FirstName123."),
+    mk("set-new2","new-password","Confirm new password"),
+    h("label",{class:"small",style:"display:flex;gap:8px;align-items:center"},h("input",{type:"checkbox",checked:P.show||null,onchange:e=>{P.show=e.target.checked;render()}}),"Show passwords"),
+    msg,h("div",{class:"bar"},btn),
+    h("p",{class:"small muted",style:"margin:0",text:pwHelpText()}));
+  const look=h("div",{class:"panel stack"},h("div",{class:"eyebrow",text:"Appearance"}),
+    h("div",{class:"bar"},h("span",{text:"Colour theme"}),h("span",{class:"grow"}),themeSwitch()),
+    h("p",{class:"small muted",style:"margin:0",text:"Saved on this device. All dates and times are shown in IST."}));
+  return[h("div",{class:"bar"},h("h2",{text:"Settings"})),h("div",{class:"settings-grid"},form,h("div",{class:"stack"},acct,look))]}
 
 function viewNodes(){
   if(S.locked&&!S.fatal)return[testLoginCard()];
@@ -837,6 +908,7 @@ function viewNodes(){
   if(S.view==="plan")out.push(...planView());
   if(S.view==="hl")out.push(...hlView());
   if(S.view==="team")out.push(...teamView());
+  if(S.view==="settings")out.push(...settingsView());
   return out;
 }
 
@@ -1337,6 +1409,7 @@ function teamView(){
           if(dr.role!=="pm")for(const x of mem)if(S.members[x].pm===id)await S.db.doc("members/"+x).update({pm:""});
           const em=dr.email.trim().toLowerCase();if(em!==(S.emails.emails?.[id]||"")){const ref=S.db.doc("private/emails");const cur=await ref.get();const data=cur.exists?cur.data():{emails:{}};data.emails={...(data.emails||{}),[id]:em};await ref.set(data)}
           delete S.memDrafts[id];toast("Saved "+nm(id))}},"Save"),
+        h("button",{class:"btn ghost sm",title:"Set the password back to "+firstName(id)+"123",onclick:()=>{const m=pwMap();if(!m[id])return toast(nm(id)+" is already on the default password ("+firstName(id)+"123)");delete m[id];try{localStorage.setItem(PW_KEY,JSON.stringify(m))}catch{}toast(nm(id)+"'s password is reset to "+firstName(id)+"123")}},"Reset password"),
         h("button",{class:"btn ghost sm",onclick:e=>{if(e.target.dataset.armed){(async()=>{await S.db.doc("members/"+id).update({status:"removed"});for(const x of mem)if(S.members[x].pm===id)await S.db.doc("members/"+x).update({pm:""});toast(nm(id)+" removed. They can't sign in; their history is kept.")})();}else{e.target.dataset.armed="1";e.target.textContent="Confirm remove";setTimeout(()=>{e.target.textContent="Remove";delete e.target.dataset.armed},4000)}}},"Remove"))))}
   if(!mem.length)pl.append(h("p",{class:"muted",style:"margin:0",text:"No members yet."}));
   mp.append(pl);out.push(mp);
