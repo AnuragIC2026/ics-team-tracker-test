@@ -561,6 +561,49 @@ input,select,textarea{max-width:100%}
 }
 .tl-top input{border:1px solid var(--line);border-radius:10px;padding:9px 12px;font:14px var(--f-body);background:var(--surface);color:var(--ink);min-height:40px}
 .tl-top input:focus{outline:2px solid var(--mint-ink);outline-offset:1px}
+
+/* ===== calmer home, less red, shorter My day, faster Review ===== */
+.actionline{display:flex;align-items:center;gap:10px 14px;flex-wrap:wrap;padding:14px 18px}
+.actionline .al-title{font-weight:600;font-size:15px;margin-right:4px}
+.al-item{display:inline-flex;align-items:center;gap:6px;font:500 14px var(--f-body);padding:8px 14px;border-radius:99px;border:1px solid var(--line);background:var(--surface);color:var(--ink);cursor:pointer;min-height:40px}
+.al-item:hover{border-color:var(--mint-ink)}
+.al-item b{font:600 15px var(--f-mono)}
+.al-item.warn b{color:var(--gold-ink)}
+.al-item.attn b{color:var(--coral-ink)}
+.al-ok{color:var(--mint-ink);font-weight:500}
+.kpis{grid-template-columns:repeat(4,minmax(0,1fr))!important}
+.kpi,.kpi.gold,.kpi.violet,.kpi.sky,.kpi.coral,.kpi.teal,.kpi.pink{--c:var(--ink);--cb:var(--surface);border:1px solid var(--line)}
+.kpi::after{display:none}
+.kpi.warn .v{color:var(--gold-ink)}
+.kpi.attn .v{color:var(--coral-ink)}
+.cell.leave,.cell.leave.ul,.cell.leave.ptl{background:var(--violet-bg);color:var(--violet-ink);border:0;font-weight:600}
+.cell.miss{background:transparent!important;border:0!important;color:var(--muted)!important;opacity:.75}
+.legend{gap:6px 18px}
+.legend span{display:inline-flex;align-items:center;gap:6px}
+.tcard .src,.tcard .src.c,.tcard .src.r,.tcard .src.s{font-size:12.5px;font-weight:400;letter-spacing:0;text-transform:none;color:var(--muted)}
+.morebtn{align-self:flex-start;font:600 13.5px var(--f-body);color:var(--mint-ink);background:none;border:1px dashed var(--line);border-radius:10px;padding:9px 14px;cursor:pointer}
+.submitbar{position:sticky;bottom:0;z-index:5;margin:4px -20px -20px;padding:12px 20px calc(12px + env(safe-area-inset-bottom,0px));background:var(--surface);border-top:1px solid var(--line);border-radius:0 0 var(--r) var(--r);box-shadow:0 -8px 20px -16px rgba(13,41,37,.35)}
+.misssum{font-size:13px;color:var(--muted);padding:4px 2px}
+.scorebox{padding:16px}
+.sbtns{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+.sbtn{min-width:46px;height:46px;border-radius:10px;border:1px solid var(--line);background:var(--bg);font:600 17px var(--f-mono);color:var(--ink);cursor:pointer}
+.sbtn:hover{border-color:var(--mint-ink)}
+.sbtn[aria-pressed="true"]{background:#00FFB3;border-color:#00FFB3;color:#03241C}
+.sbtn.x{min-width:38px;height:36px;font-size:14px}
+.xrow .small{margin-right:4px}
+.keys kbd{font:600 11px var(--f-mono);border:1px solid var(--line);border-bottom-width:2px;border-radius:5px;padding:1px 5px;background:var(--bg)}
+.more-box{border-top:1px solid var(--line);padding-top:6px}
+.more-box>summary{cursor:pointer;font-size:13.5px;color:var(--muted);padding:8px 0;list-style:none}
+.more-box>summary::before{content:"▸ "}
+.more-box[open]>summary::before{content:"▾ "}
+.more-box>.panel{margin-top:8px}
+@media (max-width:640px){
+  .kpis{grid-template-columns:repeat(2,minmax(0,1fr))!important;gap:8px}
+  .kpi{padding:10px 12px}.kpi .v{font-size:22px}.kpi .d{display:none}
+  .actionline{padding:12px 14px}.al-item{width:100%;justify-content:flex-start}
+  .keys{display:none}
+  .submitbar{margin:4px -16px -16px;padding-left:16px;padding-right:16px}
+}
 .site-foot{margin:8px 0 0;text-align:center;font-size:12px;color:var(--muted)}
 </style>
 
@@ -746,7 +789,7 @@ function testSignIn(email,pw){
   try{document.activeElement?.blur?.()}catch{}
   S.locked=false;S.drawer=null;S.draft=null;S.draftDate=null;
   if(ses.role==="admin"){S.asUser=null;S.me=S.realMe;S.isAdmin=S.realAdmin;S.view="month"}
-  else{S.asUser=ses.uid;S.me=ses.uid;S.isAdmin=false;S.view="my"}
+  else{S.asUser=ses.uid;S.me=ses.uid;S.isAdmin=false;S.view=S.members[ses.uid]?.role==="pm"?"month":"my"}
   render();return null;
 }
 function testSignOut(){
@@ -1029,6 +1072,25 @@ function joinCard(){
 }
 
 /* month ledger */
+/* home: one question first. Admin/PM: who needs action today? Team member: what's due. */
+function actionLine(){
+  const t=todayKey();if(S.month!==t.slice(0,7))return null;
+  const y=keyAdd(t,-1),sameM=y.slice(0,7)===S.month,yd=Number(y.slice(8));
+  const item=(cls,n,label,fn)=>h("button",{type:"button",class:"al-item "+cls,onclick:fn},h("b",{text:String(n)}),label,h("span",{"aria-hidden":"true",text:"→"}));
+  if(!canManage()){
+    if(!isMember())return null;
+    const i=dayInfo(S.me,S.month,Number(t.slice(8))),iy=sameM?dayInfo(S.me,S.month,yd):null,items=[];
+    if(iy?.kind==="today")items.push(h("button",{type:"button",class:"al-item warn",onclick:()=>{S.draftDate=y;S.draft=null;S.view="my";render()}},"Yesterday is open until 8 am IST · fill it",h("span",{"aria-hidden":"true",text:"→"})));
+    if(i.kind==="today")items.push(h("button",{type:"button",class:"al-item",onclick:()=>{S.draftDate=null;S.view="my";render()}},"Today's update is due by 8 am IST tomorrow",h("span",{"aria-hidden":"true",text:"→"})));
+    return h("div",{class:"panel actionline"},h("span",{class:"al-title",text:"Your day"}),...(items.length?items:[h("span",{class:"al-ok",text:i.e?"Today is logged. Nice work.":"Nothing due right now."})]))}
+  const ids=managedIds(),q=reviewQueue().length,items=[];
+  const missY=sameM?ids.filter(id=>dayInfo(id,S.month,yd).kind==="miss"):[],openY=sameM?ids.filter(id=>dayInfo(id,S.month,yd).kind==="today"):[];
+  const toReview=(day,f)=>{S.view="review";S.revDate=day;S.tf=S.tf||{};S.tf.review=f;S.sel=S.sel||{};S.sel.review=null;render()};
+  if(q)items.push(item("warn",q,(q===1?" day":" days")+" waiting for review",()=>toReview(null,"need")));
+  if(missY.length)items.push(item("attn",missY.length,missY.length===1?" person didn't fill yesterday":" people didn't fill yesterday",()=>toReview(y,"miss")));
+  if(openY.length)items.push(item("",openY.length," still filling yesterday · open until 8 am",()=>toReview(y,"all")));
+  return h("div",{class:"panel actionline"},h("span",{class:"al-title",text:"Needs action today"}),
+    ...(items.length?items:[h("span",{class:"al-ok",text:"All caught up: nothing waiting for review, and everyone filled yesterday."})]))}
 function monthView(){
   const ym=S.month,n=daysIn(ym),ids=visibleIds().sort((a,b)=>nm(a).localeCompare(nm(b)));
   const bar=h("div",{class:"bar"},
@@ -1058,30 +1120,23 @@ function monthView(){
     tr.append(h("td",{class:"sum total"},st.total),h("td",{class:"sum"},st.avg.toFixed(1)),h("td",{class:"sum lv"},st.leaves?(st.paid+"/"+st.unpaid):"–"),h("td",{class:"sum star"},st.extra||"–"));
     body.append(tr)}
   const legend=h("div",{class:"legend"},
-    h("span",null,h("i",{class:"cell s",style:heat(5)},"5"),"Scored (darker = higher)"),
-    h("span",null,h("i",{class:"cell x"},"8"),"Extraordinary (6–10)"),
-    h("span",null,h("i",{class:"cell nowork"},"2"),"No work given"),
-    h("span",null,h("i",{class:"cell pend"},"•"),"Awaiting review"),
-    h("span",null,h("i",{class:"cell leave"},"PL"),"Paid leave"),
-    h("span",null,h("i",{class:"cell leave ul"},"UL"),"Unpaid leave"),
-    h("span",null,h("i",{class:"cell s pt",style:heat(3)},"3"),"Partial leave (max 4)"),
+    h("span",null,h("i",{class:"cell s",style:heat(1)},"1"),h("i",{class:"cell s",style:heat(5)},"5"),"Score: darker is higher"),
+    h("span",null,h("i",{class:"cell x"},"8"),"Extraordinary 6–10"),
+    h("span",null,h("i",{class:"cell pend"},"•"),"Waiting for review"),
+    h("span",null,h("i",{class:"cell leave"},"PL"),"Leave: PL paid · UL unpaid · PT partial"),
     h("span",null,h("i",{class:"cell hol"},"H"),"Holiday"),
-    h("span",null,h("i",{class:"cell s bonus",style:heat(4)},"6"),"Worked on off day / holiday"),
-    h("span",null,h("i",{class:"cell today"},"+"),"Due today"),
-    h("span",null,h("i",{class:"cell miss"},"–"),"Not filled (locked, 0)"),
-    h("span",null,h("i",{class:"cell sun"},"·"),"Weekly off"));
+    h("span",null,h("i",{class:"cell sun"},"·"),"Weekly off"),
+    h("span",null,h("i",{class:"cell miss"},"–"),"Not filled (0)"));
   const stats=ids.map(uid=>({uid,...monthStats(uid,ym)}));
   const sum=k=>stats.reduce((a,x)=>a+x[k],0);
   const teamAvg=stats.length?stats.reduce((a,x)=>a+x.avg,0)/stats.length:0;
   const kpi=(cls,v,k,d,onclick)=>h(onclick?"button":"div",{class:"kpi "+cls,onclick},h("span",{class:"v",text:v}),h("span",{class:"k",text:k}),d?h("span",{class:"d",text:d}):null);
+  const waiting=canManage()?reviewQueue().length:sum("pend");
   const kpis=h("div",{class:"kpis"},
-    kpi("",sum("total"),"Team points",monthName(ym)),
-    kpi("teal",teamAvg.toFixed(1),"Avg per day","across "+ids.length+" member"+(ids.length===1?"":"s")),
-    kpi("gold","★ "+sum("extra"),"Extraordinary days","scored 6–10"),
-    kpi("violet",sum("leaves"),"Leave days",sum("paid")+" paid · "+sum("unpaid")+" unpaid"+(sum("partial")?" · "+sum("partial")+" partial":"")),
-    kpi("pink",sum("bonus"),"Holiday / off-day work","extra points days"),
-    kpi("sky",sum("pend"),"Awaiting review",canManage()&&reviewQueue().length?"tap to review":"",canManage()&&reviewQueue().length?()=>{S.view="review";render()}:null),
-    kpi("coral",sum("miss"),"Days not filled","past working days"));
+    kpi("",sum("total"),"Points",monthName(ym)),
+    kpi("",teamAvg.toFixed(1),"Average per day","across "+ids.length+(ids.length===1?" person":" people")),
+    kpi(waiting?"warn":"",waiting,"Waiting for review",canManage()&&waiting?"Open Review →":"",canManage()&&waiting?()=>{S.view="review";S.revDate=null;render()}:null),
+    kpi(sum("miss")?"attn":"",sum("miss"),"Not filled","past working days"));
   const maxPts=Math.max(1,...stats.map(x=>x.total));
   const leaders=h("div",{class:"leaders"});
   stats.slice().sort((a,b)=>b.total-a.total||b.avg-a.avg).forEach((x,ix)=>{
@@ -1096,7 +1151,7 @@ function monthView(){
   // keep the sideways scroll position across re-renders; on first view of the month, bring today's column into view (phones)
   requestAnimationFrame(()=>{if(!sc.isConnected)return;if(S.ledgerX?.ym===ym){sc.scrollLeft=S.ledgerX.x;return}
     const t=sc.querySelector("thead th.today"),nmc=sc.querySelector("thead th:first-child");if(t&&sc.scrollWidth>sc.clientWidth){sc.scrollLeft=Math.max(0,t.offsetLeft-(nmc?.offsetWidth||0)-t.offsetWidth*3)}S.ledgerX={ym,x:sc.scrollLeft}});
-  return[bar,kpis,leaders,sc,legend];
+  return[bar,actionLine(),kpis,sc,legend];
 }
 function heat(s){const p=[8,14,22,32,44,58][Math.max(0,Math.min(5,Math.round(s)))];return"background:color-mix(in srgb,var(--mint) "+p+"%,var(--surface))"}
 function cellBtn(uid,ym,d){
@@ -1124,7 +1179,7 @@ function renderDrawer(){
   if(canOpenPerson(uid))kids.push(h("button",{class:"btn ghost sm",style:"justify-self:start",onclick:()=>openPerson(uid,ym+"-"+pad(d))},"Open "+firstName(uid)+"'s page →"));
   o.append(h("div",{class:"scrim",onclick:close}),h("aside",{class:"drawer",role:"dialog","aria-label":"Day detail"},kids));
 }
-function dayDetail(uid,ym,d,close){
+function dayDetail(uid,ym,d,close,opts={}){
   const i=dayInfo(uid,ym,d);const kids=[];
   const tag={sun:"Sunday — off",leave:"On leave",miss:"Not filled",pend:"Awaiting review",scored:i.auto?"No work given (auto 2)":"Scored",off:"Company holiday"}[i.kind]||"";
   kids.push(h("div",{class:"bar"},dayChip(i),h("span",{class:"grow"}),i.score!=null?h("div",{class:"scorebig"},i.score,h("small",{text:"points"})):null));
@@ -1134,16 +1189,28 @@ function dayDetail(uid,ym,d,close){
   if(plan.length)kids.push(h("div",{class:"field"},h("span",{class:"eyebrow",text:"Assigned tasks"}),statusList(plan,i.e?.checks,{uid,key:ym+"-"+pad(d)})));
   if(i.e&&det){kids.push(i.e.done?h("div",{class:"field"},h("span",{class:"eyebrow",text:plan.length?"Overall notes":"Daily update"}),h("p",{style:"white-space:pre-wrap;margin:0",text:i.e.done})):null,
     i.e.tasks?h("div",{class:"field"},h("span",{class:"eyebrow",text:"Other work"}),h("p",{style:"white-space:pre-wrap;margin:0",text:i.e.tasks})):null)}
-  if(det&&i.sc?.reason&&(i.sc.approved||manages(uid)))kids.push(h("div",{class:"note"},h("b",null,i.sc.approved?"Scoring note: ":"Claude's suggestion ("+i.sc.ai+"): "),i.sc.reason));
+  if(det&&i.sc?.reason&&i.sc.approved&&!manages(uid))kids.push(h("div",{class:"note"},h("b",null,i.sc.approved?"Scoring note: ":"Claude's suggestion ("+i.sc.ai+"): "),i.sc.reason));
+  const extra=[];
   if(manages(uid)){
-    const inp=h("input",{type:"number",min:"0",max:String(i.partial?PARTIAL_MAX:10),step:"1",id:"drawer-score",value:i.score??i.sc?.ai??""});
+    const max=i.partial?PARTIAL_MAX:10,pk=uid+"|"+ym+"-"+pad(d);S.scorePick=S.scorePick||{};
+    let cur=S.scorePick[pk]??i.score??i.sc?.ai??null;if(cur!=null&&cur>max)cur=max;
+    const hidden=h("input",{type:"hidden",id:"drawer-score",value:cur??""});
+    const btns=[];
+    const goLabel=()=>opts.next?(i.kind==="pend"?"Approve"+(cur!=null?" "+cur:"")+" & next →":"Update & next →"):"Save score";
+    const pick=n=>{cur=n;S.scorePick[pk]=n;hidden.value=n;for(const b of btns)b.setAttribute("aria-pressed",String(Number(b.dataset.score)===n));go.textContent=goLabel()};
+    const mk=(n,x)=>{const b=h("button",{type:"button",class:"sbtn"+(x?" x":""),"data-score":String(n),"aria-pressed":String(cur===n),"aria-label":"Score "+n,onclick:()=>pick(n)},String(n));btns.push(b);return b};
     const reason=h("input",{type:"text",id:"drawer-note",placeholder:"Note for the team (optional)",value:i.sc?.approved?i.sc.reason||"":""});
-    kids.push(h("div",{class:"panel stack",style:"padding:16px"},h("div",{class:"eyebrow",text:(S.isAdmin?"Admin":"Project manager")+" · set score"}),
-      h("div",{class:"score-in"},inp,h("span",{class:"muted small",text:i.partial?"0–4 (partial leave)":"0–10"})),reason,
-      h("div",{class:"bar"},
-        h("button",{class:"btn primary",onclick:async()=>{const v=clamp(inp.value);if(v==null)return toast("Enter a score from 0 to 10");
-          await saveScore(uid,ym,d,{final:v,reason:reason.value.trim()||i.sc?.reason||"",kind:"scored"});toast("Score saved");close()}},"Save score"),
-        i.bonus||i.offday?h("span",{class:"chip pink",text:"Off-day work: award extra points"}):null)));
+    const go=h("button",{class:"btn primary",id:"score-go",onclick:async()=>{if(cur==null)return toast("Pick a score first");
+      await saveScore(uid,ym,d,{final:cur,reason:reason.value.trim()||i.sc?.reason||"",kind:"scored"});delete S.scorePick[pk];
+      if(opts.next){toast("Saved "+cur+" for "+nm(uid));opts.next()}else{toast("Score saved");close()}}},goLabel());
+    const why=det&&i.sc?.reason?h("p",{class:"small",style:"margin:0"},h("b",{text:i.sc.approved?"Scoring note: ":"Claude suggests "+i.sc.ai+": "}),i.sc.reason):(i.sc?.ai!=null?h("p",{class:"small",style:"margin:0"},h("b",{text:"Claude suggests "+i.sc.ai})):null);
+    const sbox=(h("div",{class:"panel stack scorebox"},
+      h("div",{class:"bar"},h("div",{class:"eyebrow",text:"Score this day"}),h("span",{class:"grow"}),
+        i.partial?h("span",{class:"chip violet",text:"Partial leave · max "+PARTIAL_MAX}):null,i.bonus||i.offday?h("span",{class:"chip pink",text:"Off-day work: extra points allowed"}):null),
+      why,h("div",{class:"sbtns",role:"group","aria-label":"Score"},...[0,1,2,3,4,5].filter(n=>n<=max).map(n=>mk(n))),
+      max>5?h("div",{class:"sbtns xrow",role:"group","aria-label":"Extraordinary score"},h("span",{class:"small muted",text:"Extraordinary"}),...[6,7,8,9,10].map(n=>mk(n,true))):null,
+      reason,h("div",{class:"bar"},go,opts.next?h("span",{class:"small muted keys"},h("kbd",null,"0–9")," score · ",h("kbd",null,"Enter")," approve & next · ",h("kbd",null,"J"),"/",h("kbd",null,"K")," next / previous person"):null),hidden));
+    if(opts.next)kids.splice(1,0,sbox);else kids.push(sbox);   // in Review the score sits right under the name
     if(S.isAdmin){
     const lr=h("input",{type:"text",id:"drawer-lreason",placeholder:"Leave reason",value:i.lv?.reason||""});
     const leaveBox=h("div",{class:"panel stack",style:"padding:16px"},h("div",{class:"eyebrow",text:"Admin · leave for this day"}),
@@ -1152,12 +1219,13 @@ function dayDetail(uid,ym,d,close){
         h("button",{class:"btn",onclick:async()=>{await setLeave(uid,[ym+"-"+pad(d)],"paid",lr.value.trim());close()}},"Paid leave"),
         h("button",{class:"btn",onclick:async()=>{await setLeave(uid,[ym+"-"+pad(d)],"unpaid",lr.value.trim());close()}},"Unpaid leave"),
         h("button",{class:"btn",onclick:async()=>{await setLeave(uid,[ym+"-"+pad(d)],"partial",lr.value.trim());close()}},"Partial leave")]));
-    kids.push(leaveBox);}
+    extra.push(leaveBox);}
     if(i.key<todayKey()&&!i.lv){const un=unlocked(uid,ym,d);
-      kids.push(h("div",{class:"panel stack",style:"padding:16px"},h("div",{class:"eyebrow",text:(S.isAdmin?"Admin":"Project manager")+" · late entry"}),
+      extra.push(h("div",{class:"panel stack",style:"padding:16px"},h("div",{class:"eyebrow",text:(S.isAdmin?"Admin":"Project manager")+" · late entry"}),
         h("p",{class:"small muted",style:"margin:0",text:un?"Unlocked: "+nm(uid)+" can fill or edit this day.":"Past days are locked for the team. Unlock to let "+nm(uid)+" submit a late update."}),
         h("div",null,h("button",{class:"btn",onclick:async()=>{await writeDays("plans/"+uid+"/months/"+ym,{[pad(d)]:{...(S.plans[uid+"|"+ym]?.days?.[pad(d)]||{}),unlocked:!un}});toast(un?"Locked again":"Unlocked for "+nm(uid));close()}},un?"Lock again":"Unlock this day"))))}
   }
+  if(extra.length)kids.push(h("details",{class:"more-box"},h("summary",null,S.isAdmin?"Leave and late entry":"Late entry"),...extra));
   if(i.partial)kids.splice(1,0,h("div",{class:"notice l",text:"Partial leave"+(i.lv?.reason?" ("+i.lv.reason+")":"")+". Any work logged scores up to "+PARTIAL_MAX+" points."}));
   if(i.hol)kids.splice(1,0,h("div",{class:"notice h",text:"Holiday: "+(i.hol.reason||"Company holiday")}));
   if(i.kind==="weekoff"||(i.off&&i.e))kids.splice(1,0,h("div",{class:"notice d",text:"Weekly off for "+nm(uid)+" ("+workdays(uid).slice().sort((a,b)=>((a+6)%7)-((b+6)%7)).map(n=>WD[n]).join(", ")+" are working days)"}));
@@ -1189,7 +1257,7 @@ function myView(){
     if(v.s!=null&&v.s>tmax)v.s=tmax;
     const need=S.needTasks?.includes(t.k);
     const pill=back?(v.st==="done"||(!v.st&&v.s!=null&&v.s>=tmax)?["ok","Done"]:v.st==="progress"?["sky","In progress"]:["","Pending"])
-      :v.s==null?["coral","Needs score"]:!v.c.trim()?["gold",v.s+"/"+tmax+" · add comment"]:[sClass(v.s)||"ok",v.s+"/"+tmax];
+      :v.s==null?["","Needs score"]:!v.c.trim()?["gold",v.s+"/"+tmax+" · add comment"]:[sClass(v.s)||"ok",v.s+"/"+tmax];
     const body=h("div",{class:"tbody"});
     if(back){const cur=v.st||(v.s!=null&&v.s>=tmax?"done":"todo");const seg=h("div",{class:"seg",role:"group","aria-label":"Status of "+t.text});
       [["todo","Pending"],["progress","In progress"],["done","Done"]].forEach(([k,l])=>seg.append(h("button",{type:"button","aria-pressed":String(cur===k),onclick:()=>{v.st=k;v.s=k==="done"?tmax:null;render()}},l)));
@@ -1201,7 +1269,7 @@ function myView(){
     body.append(h("div",{class:"tcomment"},h("label",{for:"tc-"+t.k,style:"position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap",text:"Comment for "+t.text}),cm));
     if(t.src==="self"&&!locked&&!existing?.checks?.[t.k])body.append(h("button",{type:"button",class:"linkbtn small",style:"justify-self:start",onclick:()=>removeMyTask(date,t.k)},"Remove this task"));
     return h("li",null,h("details",{class:"tcard"+(need?" need":"")+(back?" back":""),open:(TO[ok(t)]??need)||null,ontoggle:e=>{TO[ok(t)]=e.target.open}},
-      h("summary",null,h("span",{class:"tsum"},prioBadge(t.p),h("span",{class:"ttx",text:t.text}),h("span",{class:"src "+srcTag(t)[0],text:srcTag(t)[1]})),h("span",{class:"chip "+pill[0],text:pill[1]}),h("span",{class:"chev","aria-hidden":"true"})),
+      h("summary",null,h("span",{class:"tsum"},prioBadge(t.p),h("span",{class:"ttx",text:t.text}),h("span",{class:"src "+srcTag(t)[0],text:back?"Since "+fmtKey(t.from):srcTag(t)[1]})),h("span",{class:"chip "+pill[0],text:pill[1]}),h("span",{class:"chev","aria-hidden":"true"})),
       body))};
   const allOpen=plan.length&&plan.every(t=>TO[ok(t)]);
   const toggleAll=h("button",{type:"button",class:"linkbtn small",onclick:()=>{for(const t of plan)TO[ok(t)]=!allOpen;render()}},allOpen?"Collapse all":"Expand all");
@@ -1215,8 +1283,11 @@ function myView(){
   const checklist=[h("div",{class:"tl-head"},h("span",{class:"eyebrow",text:"Your tasks"}),todays.length?h("span",{class:"chip "+(scored===todays.length?"ok":""),text:scored+"/"+todays.length+" done"}):null,h("span",{class:"grow"}),plan.length?toggleAll:null),
     todays.length?h("ul",{class:"tlist"},todays.map(card)):h("p",{class:"muted small",style:"margin:0",text:"No tasks assigned for this day. Add your own below, or describe your work in the daily update."}),
     locked||date<todayKey()?null:addBox,
-    backlog.length?[h("div",{class:"tl-head",style:"margin-top:8px"},h("span",{class:"eyebrow",text:"Backlog · "+backlog.length}),h("span",{class:"small muted",text:"Unfinished from earlier days. Set Done when finished; anything not done carries over."})),
-      h("ul",{class:"tlist"},backlog.map(card))]:null].flat();
+    backlog.length?[h("div",{class:"tl-head",style:"margin-top:8px"},h("span",{class:"eyebrow",text:"Backlog · "+backlog.length}),h("span",{class:"small muted",text:"Urgent and critical ones are shown; set Done when finished."})),
+      ...(()=>{const all=S.backAll?.[date],imp=t=>{const v=taskVal(D.checks[t.k]);return t.p==="uh"||t.p==="u"||S.needTasks?.includes(t.k)||(v&&v.st&&v.st!=="todo")||TO[ok(t)]};
+        const shown=all?backlog:backlog.filter(imp),rest=backlog.length-shown.length;
+        return[shown.length?h("ul",{class:"tlist"},shown.map(card)):null,
+          rest?h("button",{type:"button",class:"morebtn",onclick:()=>{S.backAll=S.backAll||{};S.backAll[date]=true;render()}},rest+" more in backlog"):all&&backlog.some(t=>!imp(t))?h("button",{type:"button",class:"morebtn",onclick:()=>{S.backAll[date]=false;render()}},"Show fewer"):null]})()]:null].flat();
   const dateIn=h("input",{type:"date",id:"my-date",value:date,max:todayKey(),onchange:e=>{if(!e.target.value)return;S.draftDate=e.target.value;S.draft=null;
     if(e.target.value.slice(0,7)!==S.month){S.month=e.target.value.slice(0,7);syncSubs()}render()}});
   const seg=h("div",{class:"seg",role:"group","aria-label":"Day status"});
@@ -1254,7 +1325,7 @@ function myView(){
       h("div",{class:"field"},h("label",{for:"my-tasks",text:"Other work (optional)"}),tasks),
       h("p",{class:"muted small",style:"margin:0",text:"Claude reads this and suggests a score; your admin approves it."})]:
       h("div",{class:"field"},h("label",{for:"my-done",text:"What were you available for? (optional)"}),done),
-    locked?null:h("div",{class:"bar"},save,existing?h("span",{class:"muted small",text:"Last saved "+fmtTime(existing.at)}):null));
+    locked?null:h("div",{class:"bar submitbar"},save,existing?h("span",{class:"muted small",text:"Last saved "+fmtTime(existing.at)}):null));
   if(locked)form.querySelectorAll("textarea,.seg button,.spick button").forEach(el=>el.disabled=true);
   return[h("div",{class:"split"},form,h("div",{class:"stack",id:"my-side"}))];
 }
@@ -1266,16 +1337,18 @@ function renderMyHistory(){
       h("div",null,h("div",{class:"num",style:"font-size:30px",text:st.total}),h("div",{class:"muted small",text:"points"})),
       h("div",null,h("div",{class:"num",style:"font-size:30px",text:st.avg.toFixed(1)}),h("div",{class:"muted small",text:"avg / day"})),
       h("div",null,h("div",{class:"num",style:"font-size:30px",text:st.leaves}),h("div",{class:"muted small",text:"leave days"})),
-      st.miss?h("div",null,h("div",{class:"num",style:"font-size:30px;color:var(--coral-ink)",text:st.miss}),h("div",{class:"muted small",text:"not filled"})):null))];
+      st.miss?h("div",null,h("div",{class:"num",style:"font-size:30px",text:st.miss}),h("div",{class:"muted small",text:"not filled"})):null))];
   const notes=myNotices();if(notes.length)kids.push(h("div",{class:"panel stack"},h("div",{class:"eyebrow",text:"Notices"}),...notes));
-  const list=h("div",{class:"list"});
+  const list=h("div",{class:"list"});let missN=0;
   for(let d=Math.min(n,ym===todayKey().slice(0,7)?Number(todayKey().slice(8)):n);d>=1;d--){
     const i=dayInfo(S.me,ym,d);if(i.kind==="weekoff"||i.kind==="future")continue;
+    if(i.kind==="miss"){missN++;continue}
     list.append(h("div",{class:"item",style:"cursor:pointer",onclick:()=>{S.draftDate=ym+"-"+pad(d);S.draft=null;render()}},
       h("span",{class:"date",text:dateOf(ym,d).toLocaleDateString("en-IN",{day:"2-digit",month:"short"})}),
       h("div",{class:"body"},dayChip(i),
         i.sc?.approved&&i.sc.reason?h("p",{class:"small muted",text:i.sc.reason}):null),
       h("span",{class:"num",style:"font-size:18px",text:i.score??"–"})))}
+  if(missN)list.prepend(h("div",{class:"misssum",text:missN+(missN===1?" day":" days")+" not filled this month (0 points each)"}));
   if(!list.children.length)list.append(h("p",{class:"muted",text:"No entries this month yet."}));
   kids.push(list);side.replaceChildren(...kids);
 }
@@ -1286,6 +1359,15 @@ function reviewQueue(){
   for(const uid of managedIds())for(let d=1;d<=n;d++){const i=dayInfo(uid,ym,d);if(i.kind==="pend")out.push({uid,ym,d,i,id:uid+"|"+ym+"|"+pad(d)})}
   return out.sort((a,b)=>b.d-a.d);
 }
+/* Review keyboard shortcuts: 0-9 score, Enter approve & next, J/K next/previous person */
+document.addEventListener("keydown",e=>{
+  if(S.view!=="review"||S.locked||e.ctrlKey||e.metaKey||e.altKey)return;
+  const a=document.activeElement;if(a&&(/INPUT|TEXTAREA|SELECT/.test(a.tagName)||a.isContentEditable))return;
+  if(/^[0-9]$/.test(e.key)){const b=document.querySelector('.fpanel .sbtn[data-score="'+e.key+'"]');if(b){b.click();e.preventDefault()}return}
+  if(e.key==="Enter"){if(a&&a.tagName==="BUTTON"&&!a.classList.contains("sbtn"))return;const g=document.querySelector(".fpanel #score-go");if(g){g.click();e.preventDefault()}return}
+  if(e.key==="j"||e.key==="J"){document.querySelector('.fpanel [aria-label="Next person"]')?.click();return}
+  if(e.key==="k"||e.key==="K"){document.querySelector('.fpanel [aria-label="Previous person"]')?.click()}
+});
 function reviewView(){
   const q=reviewQueue();const unscored=q.filter(x=>x.i.sc?.ai==null||(x.i.e.at>(x.i.sc?.aiAt||0)));
   const aiBtn=h("button",{class:"btn primary",disabled:!S.sample||!unscored.length||S.busy,onclick:()=>runAI(unscored.slice(0,12))},
@@ -1312,12 +1394,12 @@ function reviewView(){
     const i=dayInfo(uid,ym,d);
     const head=h("div",{class:"fhead"},avatar(uid),h("div",{style:"min-width:0;flex:1"},h("h3",{text:nm(uid)+" · "+fmtDay(ym,d)}),h("div",{class:"small muted",text:reviewStatus(uid,key).meta||roleLabel(uid)})),
       h("button",{type:"button",class:"btn ghost sm",onclick:()=>openPerson(uid,key)},"Open page"));
-    const nodes=[head,...dayDetail(uid,ym,d,()=>render())];
-    if(i.kind==="pend"&&manages(uid))nodes.push(h("div",{class:"fbar"},h("button",{class:"btn primary",onclick:async()=>{const el=document.getElementById("drawer-score");const v=clamp(el?.value);
-      if(v==null)return toast("Enter a score from 0 to 10");const note=document.getElementById("drawer-note")?.value.trim();
-      await saveScore(uid,ym,d,{final:v,reason:note||i.sc?.reason||"",kind:"scored"});toast("Approved "+v+" for "+nm(uid));
-      const order=teamGroups(ids).flatMap(g=>g.ids),ix=order.indexOf(uid),nx=[...order.slice(ix+1),...order.slice(0,ix)].find(id=>reviewStatus(id,key).flags.need);
-      if(nx){S.sel.review=nx;render()}else toast("Everyone for "+fmtDay(ym,d)+" is reviewed")}},"Approve & next →")));
+    const nodes=[head,...dayDetail(uid,ym,d,()=>render(),{next:()=>{const order=teamGroups(ids).flatMap(g=>g.ids),ix=order.indexOf(uid);
+      const nx=[...order.slice(ix+1),...order.slice(0,ix)].find(id=>id!==uid&&reviewStatus(id,key).flags.need);
+      if(nx){S.sel.review=nx;render();return}
+      const other=reviewQueue().find(x=>x.ym+"-"+pad(x.d)!==key);
+      if(other){S.revDate=other.ym+"-"+pad(other.d);S.sel.review=other.uid;toast("Done for "+fmtDay(ym,d)+". Next: "+fmtDay(other.ym,other.d));render()}
+      else{toast("All caught up: nothing left to review");render()}}})];
     return nodes}));
   out.push(dailyReport());
   return out;
