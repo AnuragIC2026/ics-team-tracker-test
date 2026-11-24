@@ -604,6 +604,26 @@ input,select,textarea{max-width:100%}
   .keys{display:none}
   .submitbar{margin:4px -16px -16px;padding-left:16px;padding-right:16px}
 }
+
+/* ===== logs ===== */
+.logfilters{display:flex;gap:10px 14px;flex-wrap:wrap;align-items:flex-end}
+.logfilters .field{min-width:140px;margin:0}
+.logfilters .field.grow{flex:1 1 220px}
+.logfilters .field{display:grid;gap:6px;align-content:end}
+.logfilters label{margin:0;line-height:1.2}
+.logfilters select,.logfilters input{width:100%;box-sizing:border-box;border:1px solid var(--line);border-radius:10px;padding:9px 12px;font:14px var(--f-body);background:var(--surface);color:var(--ink);min-height:42px;height:42px;margin:0}
+.logfilters input:focus,.logfilters select:focus{outline:2px solid var(--mint-ink);outline-offset:1px}
+.loglist{padding:6px 18px 14px}
+.logrow{display:grid;grid-template-columns:130px 170px minmax(0,1fr);gap:4px 16px;padding:11px 0;border-bottom:1px solid var(--line);font-size:14px;align-items:baseline}
+.logrow:last-of-type{border-bottom:none}
+.logrow .lt{color:var(--muted);font-size:13px;font-variant-numeric:tabular-nums;white-space:nowrap}
+.logrow .lw{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.logrow .ls{min-width:0;overflow-wrap:anywhere}
+.logrow .ls .chip{margin-right:6px}
+.logrow.warn .ls{color:var(--gold-ink)}
+.phist{display:grid;gap:8px}
+.ph{display:grid;gap:1px}
+@media (max-width:640px){.logrow{grid-template-columns:1fr;gap:2px}.logrow .lt{font-size:12px}.logfilters .field{flex:1 1 45%;min-width:0}}
 .site-foot{margin:8px 0 0;text-align:center;font-size:12px;color:var(--muted)}
 </style>
 
@@ -768,7 +788,8 @@ function pwCurrentOptional(){return false}
 function pwHelpText(){return "Test site: your new password is saved in this browser only. Forgot it? Ask the admin to reset it in the Team tab."}
 async function savePassword(cur,next){const key=pwKey(),def=key==="admin"?TEST_ADMIN.pw:firstName(S.me)+"123";
   if(!pwOk(key,cur,def))throw new Error("Current password is incorrect.");
-  const m=pwMap();m[key]=pwHash(next);try{localStorage.setItem(PW_KEY,JSON.stringify(m))}catch{throw new Error("This browser blocks saving; try another browser.")}}
+  const m=pwMap();m[key]=pwHash(next);try{localStorage.setItem(PW_KEY,JSON.stringify(m))}catch{throw new Error("This browser blocks saving; try another browser.")}
+  demoLog("signin","password_changed","Changed their password",{user:S.asUser||null})}
 function firstName(uid){return (nm(uid)||"").trim().split(/\s+/)[0]}
 function restoreTestLogin(){
   let ses=null;try{ses=JSON.parse(sessionStorage.getItem("ics-test-login")||"null")}catch{}
@@ -776,7 +797,11 @@ function restoreTestLogin(){
   S.locked=false;
   if(ses.role==="employee"){S.asUser=ses.uid;S.me=ses.uid;S.isAdmin=false;S.view="my"}
 }
-function testSignIn(email,pw){
+function testSignIn(email,pw){const res=testSignIn0(email,pw);const uid=S.asUser;
+  if(res)demoLog("signin",/locked/i.test(res)?"signin_locked":"signin_failed","Failed sign-in for "+String(email||"").trim().toLowerCase(),{actor:null,email:String(email||"").trim().toLowerCase()});
+  else demoLog("signin","signin","Signed in with password",{user:uid||null});
+  return res}
+function testSignIn0(email,pw){
   email=String(email||"").trim().toLowerCase();
   let ses=null;
   if(email===TEST_ADMIN.email&&pwOk("admin",pw,TEST_ADMIN.pw))ses={role:"admin"};
@@ -792,7 +817,7 @@ function testSignIn(email,pw){
   else{S.asUser=ses.uid;S.me=ses.uid;S.isAdmin=false;S.view=S.members[ses.uid]?.role==="pm"?"month":"my"}
   render();return null;
 }
-function testSignOut(){
+function testSignOut(){demoLog("signin","signout","Signed out",{user:S.asUser||null});
   try{sessionStorage.removeItem("ics-test-login")}catch{}
   S.preview=null;S.asUser=null;S.me=S.realMe;S.isAdmin=S.realAdmin;S.locked=true;S.drawer=null;S.view="month";S.login={};
   window.scrollTo?.(0,0);render();
@@ -949,7 +974,7 @@ function renderHeader(){
   const list=[["month","Month ledger"]];
   if(isMember())list.push(["my","My day"]);
   if(canManage()){list.push(["plan","Plan tasks"]);list.push(["review","Review",reviewQueue().length])}
-  if(S.isAdmin){list.push(["hl","Holidays & leave"]);list.push(["team","Team",Object.keys(S.requests).filter(id=>!S.members[id]||S.members[id].status!=="active").length])}
+  if(S.isAdmin){list.push(["hl","Holidays & leave"]);list.push(["logs","Logs"]);list.push(["team","Team",Object.keys(S.requests).filter(id=>!S.members[id]||S.members[id].status!=="active").length])}
   if(!list.some(t=>t[0]===S.view)&&!((S.view==="settings"||S.view==="person")&&!S.preview))S.view="month";
   for(const[k,label,badge]of list)tabs.append(h("button",{"aria-current":String(S.view===k),onclick:()=>{S.view=k;S.drawer=null;render()}},label,badge?h("span",{class:"badge",text:badge}):null));
 }
@@ -1036,9 +1061,89 @@ function personView(){
       canManage()&&manages(uid)&&!gone&&canPlanDay(key)?h("button",{class:"btn ghost sm",onclick:()=>{S.planDate=key;S.view="plan";render()}},"Plan this day"):null,
       own&&canEditDay(S.me,key)?h("button",{class:"btn sm",onclick:()=>{S.draftDate=key;S.draft=null;S.view="my";render()}},"Fill or edit in My day"):null),
     ...dayDetail(uid,ym,d,()=>render()));
-  return[h("div",{class:"panel stack"},head,nav,strip),h("div",{class:"split"},detail,h("div",{id:"person-side",class:"stack"},side))]}
+  return[h("div",{class:"panel stack"},head,nav,strip),h("div",{class:"split"},detail,h("div",{id:"person-side",class:"stack"},side,personHistory(uid)))]}
 function lastWorkKey(uid){let best="";for(const[k,v]of Object.entries(S.entries))if(k.startsWith(uid+"|"))for(const dd of Object.keys(v?.days||{})){const key=k.split("|")[1]+"-"+dd;if(key>best)best=key}return best||todayKey()}
 function canPlanDay(key){return S.isAdmin||key>=todayKey()}
+/* ---------- Logs (admin only): activity, sign-ins, emails sent, Claude scoring. Kept forever. ---------- */
+const LOG_TYPES=[["activity","Activity"],["signin","Sign-ins"],["email","Emails sent"],["claude","Claude scoring"]];
+function logTime(iso){const d=new Date(iso);return d.toLocaleDateString("en-IN",{timeZone:"Asia/Kolkata",day:"numeric",month:"short"})+", "+d.toLocaleTimeString("en-IN",{timeZone:"Asia/Kolkata",hour:"numeric",minute:"2-digit"})}
+function deviceOf(ua){ua=String(ua||"");if(!ua)return"";
+  const b=/Edg\//.test(ua)?"Edge":/OPR\//.test(ua)?"Opera":/Chrome\//.test(ua)?"Chrome":/Firefox\//.test(ua)?"Firefox":/Safari\//.test(ua)?"Safari":/curl|node|axios/i.test(ua)?"Script":"Browser";
+  const o=/iPhone|iPad/.test(ua)?"iPhone/iPad":/Android/.test(ua)?"Android":/Windows/.test(ua)?"Windows":/Mac OS X/.test(ua)?"Mac":/Linux/.test(ua)?"Linux":"";return b+(o?" on "+o:"")}
+function logQuery(){const F=S.logF=S.logF||{type:"activity",user:"",from:"",to:"",q:""};return F}
+async function loadLogs(more){const F=logQuery(),key=JSON.stringify(F);
+  const L=S.logs&&S.logs.key===key?S.logs:(S.logs={key,rows:[],page:-1,more:false,loading:false,err:""});
+  if(L.loading)return;L.loading=true;L.err="";
+  try{const r=await fetchLogs(F,more?L.page+1:0);if(S.logs!==L)return;L.rows=more?L.rows.concat(r.rows):r.rows;L.page=r.page;L.more=r.more}
+  catch(e){L.err=e.message||"Couldn't load the logs."}finally{L.loading=false;if(S.view==="logs")render()}}
+function logRow(r,type){
+  const who=r.actor_name||r.email||(type==="claude"?"Claude":"");
+  if(type==="email")return h("div",{class:"logrow"},h("span",{class:"lt",text:logTime(r.at)}),
+    h("span",{class:"lw"},h("span",{class:"chip "+(r.status==="sent"?"ok":r.status==="failed"?"coral":""),text:r.status==="logged"?"not sent (test mode)":r.status})),
+    h("span",{class:"ls"},h("b",{text:r.subject}),h("span",{class:"small muted",text:" to "+r.to_email+(r.error?" · "+r.error:"")})));
+  if(type==="claude")return h("div",{class:"logrow"},h("span",{class:"lt",text:logTime(r.at)}),
+    h("span",{class:"lw"},h("b",{text:r.user_name||"Someone"})),
+    h("span",{class:"ls"},h("span",{class:"chip",text:"Suggested "+r.ai_score}),r.approved?h("span",{class:"chip ok",text:"Approved "+r.final_score}):h("span",{class:"chip",text:"Not approved yet"}),
+      " ",h("span",{class:"small muted",text:fmtKey(r.day)+(r.ai_reason?": "+r.ai_reason:"")})));
+  return h("div",{class:"logrow"+(/failed|wrong|locked|unknown/.test(r.action||"")?" warn":"")},h("span",{class:"lt",text:logTime(r.at)}),
+    h("span",{class:"lw"},h("b",{text:who||"Someone"})),
+    h("span",{class:"ls"},r.summary,r.agent&&r.kind==="signin"?h("span",{class:"small muted",text:" · "+deviceOf(r.agent)+(r.ip?" · "+r.ip:"")}):null))}
+function logsView(){
+  const F=logQuery(),key=JSON.stringify(F);if(!S.logs||S.logs.key!==key)setTimeout(()=>loadLogs(false),0);
+  const L=S.logs&&S.logs.key===key?S.logs:{rows:[],loading:true};
+  const set=(k,v)=>{F[k]=v;try{document.activeElement?.blur?.()}catch{}render()};
+  const people=Object.keys(S.members).sort((a,b)=>nm(a).localeCompare(nm(b)));
+  const seg=h("div",{class:"seg",role:"group","aria-label":"Log type"},...LOG_TYPES.map(([k,l])=>h("button",{type:"button","aria-pressed":String(F.type===k),onclick:()=>set("type",k)},l)));
+  const filters=h("div",{class:"logfilters"},
+    h("div",{class:"field"},h("label",{for:"log-user",class:"small",text:"Person"}),h("select",{id:"log-user",onchange:e=>set("user",e.target.value)},h("option",{value:""},"Everyone"),
+      ...people.map(id=>h("option",{value:id,selected:F.user===id||null},nm(id)+(S.members[id].status!=="active"?" (left)":""))))),
+    h("div",{class:"field"},h("label",{for:"log-from",class:"small",text:"From"}),h("input",{type:"date",id:"log-from",value:F.from,max:todayKey(),onchange:e=>set("from",e.target.value)})),
+    h("div",{class:"field"},h("label",{for:"log-to",class:"small",text:"To"}),h("input",{type:"date",id:"log-to",value:F.to,max:todayKey(),onchange:e=>set("to",e.target.value)})),
+    h("div",{class:"field grow"},h("label",{for:"log-q",class:"small",text:"Search"}),h("input",{type:"search",id:"log-q",value:F.q,placeholder:"Words in the log line",onchange:e=>set("q",e.target.value.trim())})),
+    F.user||F.from||F.to||F.q?h("button",{type:"button",class:"btn ghost sm",onclick:()=>{S.logF={type:F.type,user:"",from:"",to:"",q:""};render()}},"Clear filters"):null);
+  const list=h("div",{class:"panel loglist"});
+  if(L.err)list.append(h("p",{class:"note bad",text:L.err}));
+  else if(!L.rows.length&&L.loading)list.append(h("p",{class:"muted",text:"Loading…"}));
+  else if(!L.rows.length)list.append(h("p",{class:"muted",text:emptyLogText(F)}));
+  else for(const r of L.rows)list.append(logRow(r,F.type));
+  if(L.more)list.append(h("div",{style:"padding-top:10px"},h("button",{type:"button",class:"btn",disabled:L.loading||null,onclick:()=>loadLogs(true)},L.loading?"Loading…":"Load more")));
+  return[h("div",{class:"bar"},h("h2",{text:"Logs"}),h("span",{class:"grow"}),h("span",{class:"small muted",text:"Everything is kept. Times are IST."})),seg,filters,list]}
+function personHistory(uid){
+  if(!S.isAdmin)return null;
+  const F={type:"person",user:uid,from:"",to:"",q:""},key="p:"+uid;
+  const H=S.phist&&S.phist.key===key?S.phist:null;
+  if(!H){S.phist={key,rows:null};fetchLogs(F,0,8).then(r=>{if(S.phist?.key===key){S.phist.rows=r.rows;if(S.view==="person")render()}}).catch(()=>{if(S.phist?.key===key){S.phist.rows=[];if(S.view==="person")render()}})}
+  const rows=H?.rows;
+  return h("div",{class:"panel stack"},h("div",{class:"eyebrow",text:"Recent activity"}),
+    rows==null?h("p",{class:"small muted",style:"margin:0",text:"Loading…"}):!rows.length?h("p",{class:"small muted",style:"margin:0",text:"Nothing logged yet."}):
+      h("div",{class:"phist"},...rows.map(r=>h("div",{class:"ph"},h("span",{class:"small muted",text:logTime(r.at)}),h("span",{class:"small",text:(r.actor_name&&r.actor_name!==nm(uid)?r.actor_name+": ":"")+r.summary})))),
+    h("button",{type:"button",class:"btn ghost sm",style:"justify-self:start",onclick:()=>{S.logF={type:"activity",user:uid,from:"",to:"",q:""};S.view="logs";render();try{window.scrollTo(0,0)}catch{}}},"See all logs for "+firstName(uid)+" →"))}
+/* Test site: the log is kept in this browser (doc audit/log). The hosted version keeps it on the server. */
+async function demoLog(kind,action,summary,o={}){try{const ref=S.db.doc("audit/log"),cur=await ref.get(),items=cur.exists?(cur.data().items||[]):[];
+  const a=o.actor!==undefined?o.actor:{id:S.me,name:myName()};
+  items.push({id:items.length+1,at:new Date().toISOString(),kind,action,actor_id:a?.id||null,actor_name:a?.name||null,user_id:o.user||null,user_name:o.user?nm(o.user):null,email:o.email||null,day:o.day||null,summary,agent:navigator.userAgent});
+  await ref.set({items})}catch(e){console.warn("log",e)}}
+async function fetchLogs(F,page,limit=50){
+  if(F.type==="email")return{rows:[],page:0,more:false};
+  if(F.type==="claude"){const rows=[];for(const[k,doc]of Object.entries(S.scores))for(const[dd,v]of Object.entries(doc?.days||{})){if(v?.ai==null)continue;const[uid,ym]=k.split("|");
+      rows.push({user_id:uid,user_name:nm(uid),day:ym+"-"+dd,ai_score:v.ai,ai_reason:v.reason,at:new Date(v.aiAt||v.at||Date.now()).toISOString(),final_score:v.final,approved:!!v.approved})}
+    return pageOf(filterLogs(rows,F,"claude"),page,limit)}
+  const cur=await S.db.doc("audit/log").get();let rows=(cur.exists?cur.data().items||[]:[]).slice().reverse();
+  if(F.type!=="person")rows=rows.filter(r=>r.kind===F.type);
+  return pageOf(filterLogs(rows,F,F.type),page,limit)}
+function filterLogs(rows,F,type){const q=(F.q||"").toLowerCase(),ist=iso=>new Date(new Date(iso).getTime()+19800000).toISOString().slice(0,10);
+  return rows.filter(r=>(!F.user||r.user_id===F.user||r.actor_id===F.user)&&(!F.from||ist(r.at)>=F.from)&&(!F.to||ist(r.at)<=F.to)&&
+    (!q||[r.summary,r.actor_name,r.user_name,r.email,r.ai_reason].some(x=>String(x||"").toLowerCase().includes(q)))).sort((a,b)=>String(b.at).localeCompare(String(a.at)))}
+function pageOf(rows,page,limit){return{rows:rows.slice(page*limit,page*limit+limit),page,more:rows.length>(page+1)*limit}}
+function emptyLogText(F){return F.type==="email"?"Emails are only sent by the hosted version, so this test site has none. Once you host it, every email shows here.":"Nothing logged for these filters yet."}
+/* log the shared actions */
+{const w=(name,fn)=>{const orig=window[name];if(typeof orig!=="function")return;window[name]=async function(...a){const r=await orig.apply(this,a);try{fn(...a)}catch(e){console.warn(e)}return r}};
+  w("saveScore",(uid,ym,d,o)=>demoLog("activity","score_set","Scored "+nm(uid)+" "+o.final+" for "+fmtDay(ym,d)+(o.reason?" (note: "+String(o.reason).slice(0,80)+")":""),{user:uid,day:ym+"-"+pad(d)}));
+  w("setLeave",(uid,keys,type,reason)=>demoLog("activity","leave_set","Gave "+nm(uid)+" "+leaveLabel(type).toLowerCase()+" on "+(keys.length>1?fmtKey(keys[0])+" to "+fmtKey(keys[keys.length-1])+" ("+keys.length+" days)":fmtKey(keys[0]))+(reason?" ("+reason.slice(0,80)+")":""),{user:uid,day:keys[0]}));
+  w("doRedo",(uid,key,text,from,note)=>demoLog("activity","task_reposted","Asked "+nm(uid)+" to redo \""+String(text).slice(0,80)+"\" on "+fmtKey(key)+(note?" (note: "+note.slice(0,80)+")":""),{user:uid,day:key}));
+  w("doReassign",(fromUid,toUid,key,text)=>demoLog("activity","task_reassigned","Reassigned \""+String(text).slice(0,80)+"\" from "+nm(fromUid)+" to "+nm(toUid)+" for "+fmtKey(key),{user:toUid,day:key}));
+  w("addMyTask",(key,t)=>demoLog("activity","own_task_added","Added own task \""+String(t).slice(0,80)+"\" for "+fmtKey(key),{user:S.me,day:key}));
+  w("removeMyTask",(key)=>demoLog("activity","own_task_removed","Removed one of their own tasks on "+fmtKey(key),{user:S.me,day:key}));}
 function viewNodes(){
   if(S.locked&&!S.fatal)return[testLoginCard()];
   if(S.fatal)return[h("div",{class:"panel empty"},h("h3",null,"Sign in to use the tracker"),h("p",{class:"muted"},"Open this page signed in to claude.ai with the account your admin shared it with. Your name links your work log to you; your email is never shown to the team."))];
@@ -1056,6 +1161,7 @@ function viewNodes(){
   if(S.view==="plan")out.push(...planView());
   if(S.view==="hl")out.push(...hlView());
   if(S.view==="team")out.push(...teamView());
+  if(S.view==="logs")out.push(...logsView());
   if(S.view==="settings")out.push(...settingsView());
   if(S.view==="person")out.push(...personView());
   return out;
@@ -1215,7 +1321,7 @@ function dayDetail(uid,ym,d,close,opts={}){
     const lr=h("input",{type:"text",id:"drawer-lreason",placeholder:"Leave reason",value:i.lv?.reason||""});
     const leaveBox=h("div",{class:"panel stack",style:"padding:16px"},h("div",{class:"eyebrow",text:"Admin · leave for this day"}),
       i.lv?h("div",{class:"notice l",text:leaveLabel(i.lv.type)+(i.lv.reason?": "+i.lv.reason:"")}):lr,
-      h("div",{class:"bar"},i.lv?h("button",{class:"btn",onclick:async()=>{await writeDays("leaves/"+uid+"/months/"+ym,{[pad(d)]:null});toast("Leave removed");close()}},"Remove leave"):[
+      h("div",{class:"bar"},i.lv?h("button",{class:"btn",onclick:async()=>{await writeDays("leaves/"+uid+"/months/"+ym,{[pad(d)]:null});toast("Leave removed");demoLog("activity","leave_removed","Removed "+nm(uid)+"'s leave on "+fmtDay(ym,d),{user:uid,day:ym+"-"+pad(d)});close()}},"Remove leave"):[
         h("button",{class:"btn",onclick:async()=>{await setLeave(uid,[ym+"-"+pad(d)],"paid",lr.value.trim());close()}},"Paid leave"),
         h("button",{class:"btn",onclick:async()=>{await setLeave(uid,[ym+"-"+pad(d)],"unpaid",lr.value.trim());close()}},"Unpaid leave"),
         h("button",{class:"btn",onclick:async()=>{await setLeave(uid,[ym+"-"+pad(d)],"partial",lr.value.trim());close()}},"Partial leave")]));
@@ -1223,7 +1329,7 @@ function dayDetail(uid,ym,d,close,opts={}){
     if(i.key<todayKey()&&!i.lv){const un=unlocked(uid,ym,d);
       extra.push(h("div",{class:"panel stack",style:"padding:16px"},h("div",{class:"eyebrow",text:(S.isAdmin?"Admin":"Project manager")+" · late entry"}),
         h("p",{class:"small muted",style:"margin:0",text:un?"Unlocked: "+nm(uid)+" can fill or edit this day.":"Past days are locked for the team. Unlock to let "+nm(uid)+" submit a late update."}),
-        h("div",null,h("button",{class:"btn",onclick:async()=>{await writeDays("plans/"+uid+"/months/"+ym,{[pad(d)]:{...(S.plans[uid+"|"+ym]?.days?.[pad(d)]||{}),unlocked:!un}});toast(un?"Locked again":"Unlocked for "+nm(uid));close()}},un?"Lock again":"Unlock this day"))))}
+        h("div",null,h("button",{class:"btn",onclick:async()=>{await writeDays("plans/"+uid+"/months/"+ym,{[pad(d)]:{...(S.plans[uid+"|"+ym]?.days?.[pad(d)]||{}),unlocked:!un}});toast(un?"Locked again":"Unlocked for "+nm(uid));demoLog("activity",un?"day_locked":"day_unlocked",un?"Locked "+fmtDay(ym,d)+" again for "+nm(uid):"Unlocked "+fmtDay(ym,d)+" for "+nm(uid)+" to fill in late",{user:uid,day:ym+"-"+pad(d)});close()}},un?"Lock again":"Unlock this day"))))}
   }
   if(extra.length)kids.push(h("details",{class:"more-box"},h("summary",null,S.isAdmin?"Leave and late entry":"Late entry"),...extra));
   if(i.partial)kids.splice(1,0,h("div",{class:"notice l",text:"Partial leave"+(i.lv?.reason?" ("+i.lv.reason+")":"")+". Any work logged scores up to "+PARTIAL_MAX+" points."}));
@@ -1306,7 +1412,7 @@ function myView(){
       else if(v.s!=null||v.c.trim())checks[t.k]={s:v.s,c:v.c.trim().slice(0,1000)}}
     S.needTasks=null;
     try{await writeDays("entries/"+S.me+"/months/"+ym,{[dd]:{status:D.status,checks,tasks:D.tasks.trim().slice(0,4000),done:D.status==="worked"?D.done.trim().slice(0,6000):D.done.trim().slice(0,1000),at:Date.now()}});
-      toast(D.status==="nowork"?"Saved: no work given (2 points)":"Saved, sent for review");for(const t of plan)TO[ok(t)]=false;document.activeElement?.blur();render()}
+      toast(D.status==="nowork"?"Saved: no work given (2 points)":"Saved, sent for review");demoLog("activity",existing?"day_updated":"day_submitted",D.status==="nowork"?"Marked "+fmtKey(date)+" as \"no work given\"":(existing?"Updated":"Submitted")+" their update for "+fmtKey(date),{user:S.me,day:date});for(const t of plan)TO[ok(t)]=false;document.activeElement?.blur();render()}
     catch(e){toast("Couldn't save ("+e.code+")")}finally{save.disabled=false}}},existing?"Update entry":"Submit day");
   const form=h("div",{class:"panel stack"},
     h("div",{class:"bar"},h("h2",{style:"font-size:22px",text:"Log your day"}),h("span",{class:"grow"}),h("div",{style:"width:170px"},dateIn)),
@@ -1618,7 +1724,8 @@ function planView(){
         if(!planChanged(c.dk,c.uid,key)&&days.length===1)continue;
         const pl=planPayload(S.planDrafts[c.dk]||savedTasks(c.uid,key));
         const byYm={};for(const k of days){(byYm[k.slice(0,7)]=byYm[k.slice(0,7)]||{})[k.slice(8)]={tasks:pl.tasks,prio:pl.prio,by:S.me,at:Date.now()}}
-        for(const[m,patch]of Object.entries(byYm))await writeDays("plans/"+c.uid+"/months/"+m,patch);delete S.planDrafts[c.dk];n++}
+        for(const[m,patch]of Object.entries(byYm))await writeDays("plans/"+c.uid+"/months/"+m,patch);delete S.planDrafts[c.dk];n++;
+        const nt=lines(pl.tasks).length;demoLog("activity","tasks_planned",(nt?"Planned "+nt+" task"+(nt===1?"":"s"):"Cleared the tasks")+" for "+nm(c.uid)+" on "+(days.length>1?fmtKey(days[0])+" to "+fmtKey(days[days.length-1]):fmtKey(days[0])),{user:c.uid,day:days[0]})}
       toast(n?"Plans saved"+(days.length>1?" for "+days.length+" days":""):"No changes to save")}
     catch(e){toast("Couldn't save plans ("+e.code+")")}finally{saveBtn.disabled=false}};const saveBtn=h("button",{class:"btn",onclick:doSave},"Save");
   const pickedCard=()=>{const c=grid.firstChild;return c?[c]:[]};
@@ -1647,7 +1754,7 @@ function teamView(){
     const id="m-"+Date.now().toString(36);addBtn.disabled=true;
     try{await S.db.doc("members/"+id).set({name,title:N.title.trim().slice(0,60),workdays:[...N.days].sort(),role:N.role,pm:N.role==="pm"?"":N.pm,status:"active",since:Date.now()});
       const ref=S.db.doc("private/emails");const cur=await ref.get();const data=cur.exists?cur.data():{emails:{}};data.emails={...(data.emails||{}),[id]:email};await ref.set(data);
-      S.lastAdded={name,email,pw:name.split(" ")[0]+"123"};S.newMem=null;render()}
+      S.lastAdded={name,email,pw:name.split(" ")[0]+"123"};demoLog("activity","user_added","Added "+name+" as "+(N.role==="pm"?"project manager":"team member")+(N.pm&&S.members[N.pm]?", reporting to "+nm(N.pm):""),{user:id});S.newMem=null;render()}
     catch(e){toast("Couldn't add ("+(e.code||"error")+")")}finally{addBtn.disabled=false}}},"Add person");
   out.push(h("div",{class:"panel stack"},h("div",{class:"eyebrow",text:"Add a team member"}),
     S.lastAdded?h("div",{class:"notice d",style:"display:flex;gap:10px;flex-wrap:wrap;align-items:center"},h("span",{class:"grow"},h("b",{text:S.lastAdded.name+" added. "}),"They sign in with "+S.lastAdded.email+" and the password "+S.lastAdded.pw+" (they'll be asked to change it in the hosted version)."),h("button",{class:"btn ghost sm",onclick:()=>{S.lastAdded=null;render()}},"OK")):null,
@@ -1687,9 +1794,9 @@ function teamView(){
           await S.db.doc("members/"+id).update({title:dr.title.trim().slice(0,60),workdays:[...dr.days].sort(),role:dr.role,pm:dr.role==="pm"?"":dr.pm});
           if(dr.role!=="pm")for(const x of mem)if(S.members[x].pm===id)await S.db.doc("members/"+x).update({pm:""});
           const em=dr.email.trim().toLowerCase();if(em!==(S.emails.emails?.[id]||"")){const ref=S.db.doc("private/emails");const cur=await ref.get();const data=cur.exists?cur.data():{emails:{}};data.emails={...(data.emails||{}),[id]:em};await ref.set(data)}
-          delete S.memDrafts[id];toast("Saved "+nm(id))}},"Save"),
-        h("button",{class:"btn ghost sm",title:"Set the password back to "+firstName(id)+"123",onclick:()=>{const m=pwMap();if(!m[id])return toast(nm(id)+" is already on the default password ("+firstName(id)+"123)");delete m[id];try{localStorage.setItem(PW_KEY,JSON.stringify(m))}catch{}toast(nm(id)+"'s password is reset to "+firstName(id)+"123")}},"Reset password"),
-        h("button",{class:"btn ghost sm",onclick:e=>{if(e.target.dataset.armed){(async()=>{await S.db.doc("members/"+id).update({status:"removed"});for(const x of mem)if(S.members[x].pm===id)await S.db.doc("members/"+x).update({pm:""});toast(nm(id)+" removed. They can't sign in; their history is kept.")})();}else{e.target.dataset.armed="1";e.target.textContent="Confirm remove";setTimeout(()=>{e.target.textContent="Remove";delete e.target.dataset.armed},4000)}}},"Remove"))))}
+          delete S.memDrafts[id];toast("Saved "+nm(id));demoLog("activity","user_updated","Updated "+nm(id)+"'s details",{user:id})}},"Save"),
+        h("button",{class:"btn ghost sm",title:"Set the password back to "+firstName(id)+"123",onclick:()=>{const m=pwMap();if(!m[id])return toast(nm(id)+" is already on the default password ("+firstName(id)+"123)");delete m[id];try{localStorage.setItem(PW_KEY,JSON.stringify(m))}catch{}toast(nm(id)+"'s password is reset to "+firstName(id)+"123");demoLog("signin","password_reset","Reset "+nm(id)+"'s password to the default",{user:id})}},"Reset password"),
+        h("button",{class:"btn ghost sm",onclick:e=>{if(e.target.dataset.armed){(async()=>{demoLog("activity","user_removed","Removed "+nm(id)+" from the team",{user:id});await S.db.doc("members/"+id).update({status:"removed"});for(const x of mem)if(S.members[x].pm===id)await S.db.doc("members/"+x).update({pm:""});toast(nm(id)+" removed. They can't sign in; their history is kept.")})();}else{e.target.dataset.armed="1";e.target.textContent="Confirm remove";setTimeout(()=>{e.target.textContent="Remove";delete e.target.dataset.armed},4000)}}},"Remove"))))}
   if(!mem.length)pl.append(h("p",{class:"muted",style:"margin:0",text:"No members yet."}));
   mp.append(pl);out.push(mp);
   const gone=Object.keys(S.members).filter(id=>S.members[id].status==="removed").sort((a,b)=>nm(a).localeCompare(nm(b)));
@@ -1698,9 +1805,9 @@ function teamView(){
     for(const id of gone)rp.append(h("div",{class:"item",style:"align-items:center"},avatar(id),h("div",{style:"min-width:0"},h("b",{text:nm(id)}),h("div",{class:"small muted",text:(S.members[id].title||"")+(S.emails?.emails?.[id]?" · "+S.emails.emails[id]:"")})),
       h("div",{style:"display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end"},
         h("button",{class:"btn primary sm",onclick:()=>openPerson(id,lastWorkKey(id))},"View work"),
-        h("button",{class:"btn sm",onclick:async()=>{await S.db.doc("members/"+id).update({status:"active"});toast(nm(id)+" restored")}},"Restore"),
+        h("button",{class:"btn sm",onclick:async()=>{await S.db.doc("members/"+id).update({status:"active"});toast(nm(id)+" restored");demoLog("activity","user_restored","Restored "+nm(id)+" to the team",{user:id})}},"Restore"),
         h("button",{class:"btn ghost sm danger",onclick:async e=>{if(!e.target.dataset.armed){e.target.dataset.armed="1";e.target.textContent="Click again to delete "+firstName(id);setTimeout(()=>{if(e.target.isConnected){e.target.textContent="Delete permanently";delete e.target.dataset.armed}},5000);return}
-          const n=nm(id);await S.db.doc("members/"+id).delete();const ref=S.db.doc("private/emails");const cur=await ref.get();if(cur.exists){const data=cur.data();if(data.emails){delete data.emails[id];await ref.set(data)}}
+          const n=nm(id);await demoLog("activity","user_deleted","Deleted "+n+" permanently, with all their records",{user:id});await S.db.doc("members/"+id).delete();const ref=S.db.doc("private/emails");const cur=await ref.get();if(cur.exists){const data=cur.data();if(data.emails){delete data.emails[id];await ref.set(data)}}
           delete S.memDrafts[id];toast(n+" deleted permanently")}},"Delete permanently"))));
     out.push(rp)}
   out.push(h("div",{class:"panel stack"},h("div",{class:"eyebrow",text:"How scoring works"}),rubricBlock(),
@@ -1762,13 +1869,13 @@ function hlView(){
   const addHol=h("button",{class:"btn primary",onclick:async()=>{
     const k=H.hdate||todayKey(),reason=(H.hreason||"").trim();if(!reason)return toast("Add a reason for the holiday");
     const scope=H.hscope==="all"?"all":ids.filter(u=>H.hsel[u]);if(scope!=="all"&&!scope.length)return toast("Pick at least one person");
-    try{await writeDays("holidays/"+k.slice(0,7),{[k.slice(8)]:{reason:reason.slice(0,120),scope,by:S.me,at:Date.now()}});H.hreason="";toast("Holiday added for "+fmtKey(k));render()}catch(e){toast("Couldn't add holiday ("+e.code+")")}}},"Add holiday");
+    try{await writeDays("holidays/"+k.slice(0,7),{[k.slice(8)]:{reason:reason.slice(0,120),scope,by:S.me,at:Date.now()}});H.hreason="";toast("Holiday added for "+fmtKey(k));demoLog("activity","holiday_added","Added a holiday on "+fmtKey(k)+(reason?": "+reason.slice(0,80):""),{day:k});render()}catch(e){toast("Couldn't add holiday ("+e.code+")")}}},"Add holiday");
   const holList=h("div",{class:"rowlist"});
   const hols=[];for(const[m,doc]of Object.entries(S.holidays))for(const[dd,x]of Object.entries(doc?.days||{}))if(x&&(m===ym||m===shiftMonth(ym,1)))hols.push([m+"-"+dd,x]);
   hols.sort((a,b)=>a[0]<b[0]?-1:1);
   for(const[k,x]of hols)holList.append(h("div",{class:"rowitem"},h("span",{class:"chip pink",text:fmtKey(k)}),h("span",{class:"grow",text:x.reason}),
     h("span",{class:"small muted",text:x.scope==="all"?"Everyone":(x.scope||[]).map(nm).join(", ")}),
-    h("button",{class:"btn ghost sm",onclick:async()=>{await writeDays("holidays/"+k.slice(0,7),{[k.slice(8)]:null});toast("Holiday removed")}},"Remove")));
+    h("button",{class:"btn ghost sm",onclick:async()=>{await writeDays("holidays/"+k.slice(0,7),{[k.slice(8)]:null});toast("Holiday removed");demoLog("activity","holiday_removed","Removed the holiday on "+fmtKey(k),{day:k})}},"Remove")));
   if(!hols.length)holList.append(h("p",{class:"muted small",style:"margin:0",text:"No holidays set for "+monthName(ym)+" or next month."}));
   const holPanel=h("div",{class:"panel stack"},h("div",{class:"eyebrow",text:"Add a holiday"}),
     h("div",{class:"field"},h("label",{for:"hl-date",text:"Date"}),hd),h("div",{class:"field"},h("label",{for:"hl-reason",text:"Reason"}),hr),
@@ -1792,7 +1899,7 @@ function hlView(){
   const lvList=h("div",{class:"rowlist"});let lvn=0;
   for(const uid of ids){const doc=S.leaves[uid+"|"+ym];for(const[dd,x]of Object.entries(doc?.days||{}).sort()){if(!x)continue;lvn++;
     lvList.append(h("div",{class:"rowitem"},avatar(uid),h("b",{text:nm(uid)}),h("span",{class:"chip violet",text:fmtKey(ym+"-"+dd)}),h("span",{class:"chip "+(x.type==="unpaid"?"coral":"ok"),text:x.type==="unpaid"?"Unpaid":x.type==="partial"?"Partial":"Paid"}),
-      h("span",{class:"grow small muted",text:x.reason||""}),h("button",{class:"btn ghost sm",onclick:async()=>{await writeDays("leaves/"+uid+"/months/"+ym,{[dd]:null});toast("Leave removed")}},"Remove")))}}
+      h("span",{class:"grow small muted",text:x.reason||""}),h("button",{class:"btn ghost sm",onclick:async()=>{await writeDays("leaves/"+uid+"/months/"+ym,{[dd]:null});toast("Leave removed");demoLog("activity","leave_removed","Removed "+nm(uid)+"'s leave on "+fmtKey(ym+"-"+dd),{user:uid,day:ym+"-"+dd})}},"Remove")))}}
   if(!lvn)lvList.append(h("p",{class:"muted small",style:"margin:0",text:"No leave set in "+monthName(ym)+"."}));
   const lvPanel=h("div",{class:"panel stack"},h("div",{class:"eyebrow",text:"Assign leave"}),
     h("div",{class:"field"},h("label",{for:"lv-emp",text:"Team member"}),sel),

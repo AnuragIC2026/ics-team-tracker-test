@@ -22,6 +22,8 @@ The production app (Node + MySQL, server-checked login and roles, email OTP, not
 
 **Past days** are read-only: only the admin can add or change tasks on them. **Click a name** in the Month ledger to open that person's day-by-day page (admin: anyone; project manager: their team and themselves; team member: only themselves). People who leave move to **Former members** in Team, with their work kept.
 
+**Logs** (admin only): a Logs tab shows who did what and when: activity (updates, plans, scores, leave, holidays, team changes), sign-ins (including wrong passwords), emails sent and Claude's suggested scores, with filters for person, dates and words. Each person's page also shows their recent activity. On this test site the log is kept in your browser and no emails are sent; the hosted version keeps everything on the server, forever.
+
 **Leave**: only the admin assigns leave: paid, unpaid or partial. On a partial-leave day the person can still log a little work; task self-scores and the day's score go up to 4.
 
 **Sign-in (temporary passwords)**
