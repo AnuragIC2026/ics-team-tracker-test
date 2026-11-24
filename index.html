@@ -14,7 +14,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Jost:wght@400;500;600&family=Instrument+Sans:wght@400;500;600&family=JetBrains+Mono:wght@500&display=swap">
 <style>
-/* Layout: a monthly ledger — team × days heat grid is the home; entry, review and team tools sit behind tabs in one column */
+/* Layout: a monthly ledger: team × days heat grid is the home; entry, review and team tools sit behind tabs in one column */
 :root{
   --bg:#F3F7F6; --surface:#FFFFFF; --sunk:#E9F0EE; --ink:#0D2925; --muted:#5A6F6B; --line:#D7E2DF;
   --mint:#00FFB3; --mint-ink:#007A58; --on-mint:#03241C;
@@ -1287,7 +1287,7 @@ function renderDrawer(){
 }
 function dayDetail(uid,ym,d,close,opts={}){
   const i=dayInfo(uid,ym,d);const kids=[];
-  const tag={sun:"Sunday — off",leave:"On leave",miss:"Not filled",pend:"Awaiting review",scored:i.auto?"No work given (auto 2)":"Scored",off:"Company holiday"}[i.kind]||"";
+  const tag={sun:"Sunday: off",leave:"On leave",miss:"Not filled",pend:"Awaiting review",scored:i.auto?"No work given (auto 2)":"Scored",off:"Company holiday"}[i.kind]||"";
   kids.push(h("div",{class:"bar"},dayChip(i),h("span",{class:"grow"}),i.score!=null?h("div",{class:"scorebig"},i.score,h("small",{text:"points"})):null));
   const det=canSeeDetails(uid);
   const plan=det?planFor(uid,ym,d):[];
